@@ -1,15 +1,6 @@
 "use client";
 
-function shortenUrl(raw: string): string {
-  try {
-    const u = new URL(raw);
-    const path = u.pathname === "/" ? "" : u.pathname;
-    const trimmed = `${u.host}${path}`;
-    return trimmed.length > 60 ? trimmed.slice(0, 57) + "…" : trimmed;
-  } catch {
-    return raw;
-  }
-}
+import { describeUrl } from "@/lib/describe-url";
 
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
@@ -97,7 +88,7 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
                 >
                   {/* Fall back to a compact host+path when there's no
                       human-friendly sourceRef (manually-added tasks). */}
-                  {task.sourceRef ?? shortenUrl(task.url)}
+                  {task.sourceRef ?? describeUrl(task.url)}
                 </a>
               ) : (
                 task.sourceRef
