@@ -77,7 +77,8 @@ async function testSlack(): Promise<TestResult> {
     const res = await fetch("https://slack.com/api/auth.test", {
       headers: {
         authorization: `Bearer ${xoxc}`,
-        cookie: `d=${xoxd}`,
+        // Slack requires the `d` cookie URL-encoded (matches browser behavior).
+        cookie: `d=${encodeURIComponent(xoxd)}`,
         accept: "application/json",
       },
     });

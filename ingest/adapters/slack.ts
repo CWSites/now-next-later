@@ -50,7 +50,10 @@ async function slackGet<T>(
   const res = await fetch(url, {
     headers: {
       authorization: `Bearer ${xoxc}`,
-      cookie: `d=${xoxd}`,
+      // Slack rejects the `d` cookie when its `+ / =` characters are sent
+      // raw in the Cookie header — must be URL-encoded, matching how
+      // browsers transmit cookies with special characters.
+      cookie: `d=${encodeURIComponent(xoxd)}`,
       accept: "application/json",
     },
   });
