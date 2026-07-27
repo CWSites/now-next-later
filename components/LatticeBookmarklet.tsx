@@ -24,7 +24,14 @@ interface Props {
 
 export function LatticeBookmarklet({ appOrigin }: Props) {
   const src = BOOKMARKLET_SRC.replace(/\s+/g, " ").replace(/%%APP_ORIGIN%%/g, appOrigin);
-  const href = `javascript:${encodeURI(src)}`;
+  // React 19 blocks href="javascript:..." on any component it renders (XSS
+  // hardening). Bookmarklets legitimately need that scheme, so we sidestep
+  // React's URL validation by inserting the anchor as raw HTML. We hand-
+  // escape everything that goes into the attribute.
+  const escapedHref = `javascript:${encodeURI(src)}`
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;");
+  const bookmarkAnchor = `<a href="${escapedHref}" class="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">📎 Refresh Lattice session</a>`;
 
   return (
     <div>
@@ -33,18 +40,7 @@ export function LatticeBookmarklet({ appOrigin }: Props) {
         Drag the button below to your bookmarks bar, then click it from any signed-in{" "}
         <code>app.latticehq.com</code> tab. Sessions rotate every few weeks — re-click to refresh.
       </p>
-      <a
-        href={href}
-        onClick={(e) => {
-          e.preventDefault();
-          alert(
-            "This is a draggable bookmarklet — drag it to your bookmarks bar, then click it from any app.latticehq.com tab.",
-          );
-        }}
-        className="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-      >
-        📎 Refresh Lattice session
-      </a>
+      <span dangerouslySetInnerHTML={{ __html: bookmarkAnchor }} />
     </div>
   );
 }

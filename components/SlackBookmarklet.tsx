@@ -38,7 +38,13 @@ export function SlackBookmarklet({ appOrigin, workspaceMatch }: Props) {
       /%%WORKSPACE_MATCH%%/g,
       workspaceMatch ? JSON.stringify(workspaceMatch.toLowerCase()) : "''",
     );
-  const href = `javascript:${encodeURI(src)}`;
+  // React 19 blocks href="javascript:..." on any component it renders (XSS
+  // hardening). Bookmarklets legitimately need that scheme, so we sidestep
+  // React's URL validation by inserting the anchor as raw HTML.
+  const escapedHref = `javascript:${encodeURI(src)}`
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;");
+  const bookmarkAnchor = `<a href="${escapedHref}" class="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">📎 Refresh Slack tokens</a>`;
 
   return (
     <div className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -49,21 +55,7 @@ export function SlackBookmarklet({ appOrigin, workspaceMatch }: Props) {
         just click the bookmarklet from any Slack tab &mdash; it grabs the fresh tokens and saves them
         here in one click.
       </p>
-      {/* eslint-disable-next-line react/jsx-no-target-blank */}
-      <a
-        href={href}
-        onClick={(e) => {
-          // If they click it here (on this page), it can't work since we're
-          // not on slack.com. Nudge them to drag it instead.
-          e.preventDefault();
-          alert(
-            "This is a draggable bookmarklet — drag it to your bookmarks bar, then click it from any your workspace's Slack tab.",
-          );
-        }}
-        className="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-      >
-        📎 Refresh Slack tokens
-      </a>
+      <span dangerouslySetInnerHTML={{ __html: bookmarkAnchor }} />
       <p className="mt-2 text-xs text-neutral-500">
         Matches workspaces whose domain or name contains{" "}
         <code>{workspaceMatch || "(first team)"}</code>.
