@@ -52,8 +52,10 @@ export function Column({ bucket, tasks, onCreate, onUpdate, onDelete }: Props) {
   return (
     <section
       ref={setNodeRef}
-      className={`flex min-h-[300px] flex-col rounded-lg border bg-white/60 p-3 shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60 ${
-        isOver ? "border-blue-400 dark:border-blue-500" : "border-neutral-200"
+      className={`flex min-h-[300px] flex-col rounded-lg border p-3 shadow-sm transition-colors dark:border-neutral-800 ${
+        isOver
+          ? "border-blue-400 bg-blue-50/70 ring-2 ring-blue-300/50 dark:border-blue-500 dark:bg-blue-950/40 dark:ring-blue-500/30"
+          : "border-neutral-200 bg-white/60 dark:bg-neutral-900/60"
       }`}
     >
       <header className="mb-3 flex items-baseline justify-between px-1">
@@ -123,8 +125,14 @@ export function Column({ bucket, tasks, onCreate, onUpdate, onDelete }: Props) {
           />
         ))}
         {tasks.length === 0 ? (
-          <li className="rounded-md border border-dashed border-neutral-200 py-6 text-center text-xs text-neutral-400 dark:border-neutral-800">
-            nothing here
+          <li
+            className={`rounded-md border border-dashed py-6 text-center text-xs transition-colors ${
+              isOver
+                ? "border-blue-400 text-blue-600 dark:border-blue-500 dark:text-blue-300"
+                : "border-neutral-200 text-neutral-400 dark:border-neutral-800"
+            }`}
+          >
+            {isOver ? "drop to move here" : "nothing here — drag tasks in or add above"}
           </li>
         ) : null}
       </ul>

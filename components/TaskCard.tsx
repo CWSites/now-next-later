@@ -43,6 +43,26 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
         dragging ? "ring-2 ring-blue-400" : ""
       }`}
     >
+      {/* Explicit drag handle so the affordance is obvious. The listeners
+          live here (and on the title, for backward compat) so users can
+          grab either the gripper or the text. */}
+      <button
+        type="button"
+        aria-label="Drag to reorder or move"
+        {...attributes}
+        {...listeners}
+        className="mt-0.5 shrink-0 cursor-grab touch-none select-none px-0.5 text-neutral-300 hover:text-neutral-600 active:cursor-grabbing dark:text-neutral-600 dark:hover:text-neutral-300"
+        onClick={(e) => e.preventDefault()}
+      >
+        <svg width="10" height="16" viewBox="0 0 10 16" aria-hidden fill="currentColor">
+          <circle cx="2" cy="3" r="1.3" />
+          <circle cx="2" cy="8" r="1.3" />
+          <circle cx="2" cy="13" r="1.3" />
+          <circle cx="8" cy="3" r="1.3" />
+          <circle cx="8" cy="8" r="1.3" />
+          <circle cx="8" cy="13" r="1.3" />
+        </svg>
+      </button>
       <input
         type="checkbox"
         checked={task.completed}
