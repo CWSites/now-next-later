@@ -2,13 +2,14 @@ import type { Adapter, AdapterResult } from "./adapters/base";
 import { jiraAdapter } from "./adapters/jira";
 import { slackAdapter } from "./adapters/slack";
 import { gcalAdapter } from "./adapters/gcal";
+import { granolaAdapter } from "./adapters/granola";
 import { upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
 import { REPO_ROOT } from "@/lib/storage";
 import { applySecretsToEnv } from "@/lib/secrets";
 
 // Register adapters here. New adapters just need to be added to this list.
-const ADAPTERS: Adapter[] = [jiraAdapter, slackAdapter, gcalAdapter];
+const ADAPTERS: Adapter[] = [jiraAdapter, slackAdapter, gcalAdapter, granolaAdapter];
 
 export interface IngestSummary {
   startedAt: string;

@@ -70,6 +70,12 @@ export const SECRET_SCHEMA: SecretField[] = [
     secret: true,
     help: "Set automatically after clicking 'Connect Google Calendar'.",
   },
+  {
+    key: "GRANOLA_API_KEY",
+    label: "Granola API key",
+    secret: true,
+    help: "Granola desktop app → Settings → API keys → Create personal key. See docs.granola.ai/help-center/sharing/integrations/granola-api.",
+  },
 ];
 
 const SECRET_KEYS = new Set(SECRET_SCHEMA.map((f) => f.key));

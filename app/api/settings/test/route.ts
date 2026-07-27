@@ -177,8 +177,55 @@ async function testGoogle(): Promise<TestResult> {
   }
 }
 
+async function testGranola(): Promise<TestResult> {
+  const token = process.env.GRANOLA_API_KEY;
+  if (!token) {
+    return {
+      name: "granola",
+      configured: false,
+      ok: false,
+      error: "Missing GRANOLA_API_KEY.",
+    };
+  }
+  try {
+    // /v1/notes with a 1-item limit is the cheapest call that proves the
+    // key works and has the notes scope.
+    const res = await fetch("https://public-api.granola.ai/v1/notes?limit=1", {
+      headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+    });
+    if (!res.ok) {
+      return {
+        name: "granola",
+        configured: true,
+        ok: false,
+        error: `HTTP ${res.status}`,
+      };
+    }
+    const data = (await res.json()) as {
+      data?: unknown[];
+      notes?: unknown[];
+      total?: number;
+    };
+    const count = data.data?.length ?? data.notes?.length ?? 0;
+    return {
+      name: "granola",
+      configured: true,
+      ok: true,
+      identity: `key valid`,
+      detail: `saw ${count} note in first page${data.total ? ` (~${data.total} total)` : ""}`,
+    };
+  } catch (err) {
+    return {
+      name: "granola",
+      configured: true,
+      ok: false,
+      error: (err as Error).message.slice(0, 120),
+    };
+  }
+}
+
 export async function POST() {
   await applySecretsToEnv();
-  const results = await Promise.all([testJira(), testSlack(), testGoogle()]);
+  const results = await Promise.all([testJira(), testSlack(), testGoogle(), testGranola()]);
   return NextResponse.json({ results });
 }
