@@ -91,7 +91,7 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
 
   return (
     <form
-      className="space-y-6"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
         void save();
@@ -118,13 +118,20 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
         {status ? <span className="text-xs text-neutral-500">{status}</span> : null}
       </div>
 
+      {/* Responsive provider grid:
+            - <768px  → single column (stack)
+            - 768–1279 → two columns
+            - ≥1280   → three columns
+          Sections `break-inside-avoid` isn't needed here since we're using CSS Grid
+          (not columns), which already keeps each card as one unit. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {providers.map((p) => {
         const fields = byProvider.get(p.id) ?? [];
         const result = testResults?.[p.id];
         return (
           <section
             key={p.id}
-            className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
+            className="flex flex-col rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
           >
             <header className="mb-3 flex items-baseline justify-between gap-3">
               <div>
@@ -229,6 +236,7 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
           </section>
         );
       })}
+      </div>
 
       {testResults?.error ? (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">

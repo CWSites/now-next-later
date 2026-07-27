@@ -18,7 +18,7 @@ export default async function SettingsPage({ searchParams }: Params) {
   const appOrigin = `${proto}://${host}`;
   const workspaceMatch = process.env.SLACK_WORKSPACE_MATCH ?? "your-workspace";
   return (
-    <main className="mx-auto max-w-2xl p-6">
+    <main className="mx-auto max-w-6xl p-6">
       <header className="mb-6 flex items-baseline justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <Link
