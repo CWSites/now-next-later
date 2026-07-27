@@ -12,7 +12,7 @@ import "server-only";
  * process.env.FOO keeps working.
  */
 
-export type Provider = "jira" | "slack" | "gcal" | "granola";
+export type Provider = "jira" | "slack" | "gcal" | "granola" | "fellow";
 
 export interface SecretField {
   key: string;
@@ -57,6 +57,12 @@ export const PROVIDERS: ProviderMeta[] = [
     label: "Granola",
     emoji: "📝",
     description: "Recent meeting notes and open action items.",
+  },
+  {
+    id: "fellow",
+    label: "Fellow",
+    emoji: "🤝",
+    description: "Open action items assigned to you in Fellow.",
   },
 ];
 
@@ -123,6 +129,21 @@ export const SECRET_SCHEMA: SecretField[] = [
     secret: true,
     provider: "granola",
     help: "Granola desktop app → Settings → API keys → Create personal key. See docs.granola.ai/help-center/sharing/integrations/granola-api.",
+  },
+  {
+    key: "FELLOW_API_BASE_URL",
+    label: "Fellow API base URL",
+    secret: false,
+    provider: "fellow",
+    placeholder: "https://api.fellow.app/v1",
+    help: "Copy from any 'Try it' example on developers.fellow.ai (host + version prefix, no trailing slash).",
+  },
+  {
+    key: "FELLOW_API_KEY",
+    label: "Fellow API key",
+    secret: true,
+    provider: "fellow",
+    help: "Fellow app → Settings → Developers → API keys → Create.",
   },
 ];
 
