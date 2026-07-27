@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "mcp": "tsx mcp/server.ts"
+    "mcp": "tsx mcp/server.ts",
+    "import:brief": "tsx scripts/import-morning-brief.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

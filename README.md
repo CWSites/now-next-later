@@ -73,6 +73,18 @@ Restart Claude Desktop. Then you can say things like:
 
 Because the MCP server and the web UI share the same JSON file, changes made by Claude appear on next page refresh (and vice versa).
 
+## Importing the morning brief
+
+The [`morning-brief` skill](file://$HOME/Documents/Claude/Scheduled/morning-brief/SKILL.md) writes an HTML artifact to `~/Documents/Claude/Artifacts/morning-brief/index.html` each weekday. Import its Today / This Week / This Month checklists into Now / Next / Later:
+
+```bash
+npm run import:brief             # imports new items, skips already-imported ones
+npm run import:brief -- --dry-run
+npm run import:brief -- --path /some/other/index.html
+```
+
+Dedupe is per-title within tasks tagged `source: "morning-brief"`, so it's safe to re-run every morning. Existing tasks in your list keep their state (position, completion) even if the brief still mentions them.
+
 ## Keyboard shortcuts
 
 - `n` — focus the "Now" new-task input

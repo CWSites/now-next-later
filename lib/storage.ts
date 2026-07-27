@@ -56,6 +56,8 @@ export interface CreateTaskInput {
   title: string;
   bucket?: Bucket;
   notes?: string;
+  source?: string;
+  sourceRef?: string;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -73,6 +75,8 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       createdAt: now,
       updatedAt: now,
       completedAt: null,
+      source: input.source,
+      sourceRef: input.sourceRef,
     };
     file.tasks.push(task);
     await writeFile(file, `add: ${task.title.slice(0, 60)}`);

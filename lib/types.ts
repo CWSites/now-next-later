@@ -13,6 +13,10 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   completedAt?: string | null;
+  /** Optional provenance, e.g. "morning-brief". Used to dedupe on re-import. */
+  source?: string;
+  /** Optional short source blurb, e.g. "In Jira PEPPERMINT-2826." */
+  sourceRef?: string;
 }
 
 export interface TasksFile {
