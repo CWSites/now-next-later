@@ -1,5 +1,16 @@
 "use client";
 
+function shortenUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    const path = u.pathname === "/" ? "" : u.pathname;
+    const trimmed = `${u.host}${path}`;
+    return trimmed.length > 60 ? trimmed.slice(0, 57) + "…" : trimmed;
+  } catch {
+    return raw;
+  }
+}
+
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -74,7 +85,7 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
           >
             {task.title}
           </div>
-          {task.sourceRef ? (
+          {task.sourceRef || task.url ? (
             <div className="mt-0.5 truncate text-[11px] text-neutral-500">
               {task.url ? (
                 <a
@@ -84,7 +95,9 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
                   onClick={(e) => e.stopPropagation()}
                   className="underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500 dark:decoration-neutral-700"
                 >
-                  {task.sourceRef}
+                  {/* Fall back to a compact host+path when there's no
+                      human-friendly sourceRef (manually-added tasks). */}
+                  {task.sourceRef ?? shortenUrl(task.url)}
                 </a>
               ) : (
                 task.sourceRef
