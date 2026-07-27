@@ -72,19 +72,16 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     cookie?: string;
     graphqlOrigin?: string;
+    storage?: Record<string, string>;
+    probeUser?: { id?: string; name?: string; email?: string };
   } | null;
 
-  if (!body || typeof body.cookie !== "string" || body.cookie.trim().length === 0) {
-    return NextResponse.json({ error: "expected { cookie, graphqlOrigin }" }, { status: 400, headers });
+  if (!body || typeof body.graphqlOrigin !== "string") {
+    return NextResponse.json({ error: "expected { graphqlOrigin, cookie? }" }, { status: 400, headers });
   }
-  const cookie = body.cookie.trim();
-  // Fall back to app.latticehq.com if the bookmarklet is an older version.
-  const graphqlOrigin =
-    (typeof body.graphqlOrigin === "string" && body.graphqlOrigin.trim()) ||
-    "https://app.latticehq.com";
+  const cookie = (body.cookie ?? "").trim();
+  const graphqlOrigin = body.graphqlOrigin.trim() || "https://app.latticehq.com";
 
-  // Only accept origins under latticehq.com so a malicious page can't get us
-  // to POST cookies to arbitrary hosts.
   if (!/^https:\/\/([a-z0-9-]+\.)*latticehq\.com$/i.test(graphqlOrigin)) {
     return NextResponse.json(
       { error: `graphqlOrigin must be a *.latticehq.com URL, got ${graphqlOrigin}` },
@@ -92,10 +89,24 @@ export async function POST(req: Request) {
     );
   }
 
+  // Try to auth server-side with what we've got. If it fails and the browser
+  // itself just succeeded (probeUser is set), we know the reason: Lattice's
+  // session cookies are HttpOnly, so document.cookie can't see them.
   const check = await verifyLatticeCookie(cookie, graphqlOrigin);
   if (!check.ok) {
+    const hint =
+      body.probeUser?.id
+        ? `Your browser CAN auth (as ${body.probeUser.name ?? body.probeUser.email ?? body.probeUser.id}) but the server cannot. That means Lattice's session cookies are HttpOnly and JS on the page can't read them — a security setting on Lattice's side we can't bypass. See the alternative below.`
+        : "Neither the browser nor the server could authenticate. Are you actually signed in?";
+    // Storage sweep never turned up anything JWT-looking?
+    const storageKeys = Object.keys(body.storage ?? {});
     return NextResponse.json(
-      { error: check.error ?? "Lattice rejected the session cookie" },
+      {
+        error: check.error ?? "Lattice rejected the session cookie",
+        hint,
+        cookieVisibleToJs: cookie.length,
+        interestingStorageKeys: storageKeys,
+      },
       { status: 400, headers },
     );
   }

@@ -10,13 +10,23 @@
 
 const BOOKMARKLET_SRC = `(async()=>{try{
   if(!location.host.endsWith('latticehq.com')){alert('Run this from a latticehq.com tab (e.g. your workspace subdomain).');return;}
-  const cookie=document.cookie;
-  if(!cookie){alert('No cookies visible on this page. Are you signed in?');return;}
   const graphqlOrigin=location.origin;
-  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin})});
+  // Step 1: prove that the browser itself can auth to /graphql. If this
+  // works but our server-side call doesn't, cookies are HttpOnly.
+  const probe=await fetch(graphqlOrigin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({query:'query WhoAmI { me { id name email } }'})});
+  const probeBody=await probe.json().catch(()=>({}));
+  const probeOk=probe.ok && probeBody.data && probeBody.data.me && probeBody.data.me.id;
+  if(!probeOk){alert('\u274C Even from inside Lattice this failed: '+probe.status+' '+(probeBody.errors?probeBody.errors[0].message:'no me')+'. You may not be signed in.');return;}
+  // Step 2: collect what we could possibly ship server-side. If HttpOnly is on,
+  // document.cookie will be missing the important cookies — we detect that below.
+  const cookie=document.cookie;
+  const storageDump={};
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&/token|auth|session|jwt|bearer/i.test(k))storageDump['ls:'+k]=localStorage.getItem(k);}}catch(e){}
+  try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);if(k&&/token|auth|session|jwt|bearer/i.test(k))storageDump['ss:'+k]=sessionStorage.getItem(k);}}catch(e){}
+  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin,storage:storageDump,probeUser:probeBody.data.me})});
   const data=await res.json();
   if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+data.user+' at '+graphqlOrigin+'.');}
-  else{alert('\u274C '+(data.error||('HTTP '+res.status)));}
+  else{alert('\u274C '+(data.error||('HTTP '+res.status))+'\\n\\nHint: '+(data.hint||'?'));}
 }catch(e){alert('Error: '+e.message);}})();`;
 
 interface Props {
