@@ -12,7 +12,7 @@ import "server-only";
  * process.env.FOO keeps working.
  */
 
-export type Provider = "jira" | "slack" | "gcal" | "granola" | "fellow";
+export type Provider = "jira" | "slack" | "gcal" | "granola" | "fellow" | "lattice";
 
 export interface SecretField {
   key: string;
@@ -63,6 +63,12 @@ export const PROVIDERS: ProviderMeta[] = [
     label: "Fellow",
     emoji: "🤝",
     description: "Open action items assigned to you in Fellow.",
+  },
+  {
+    id: "lattice",
+    label: "Lattice",
+    emoji: "📊",
+    description: "Open todos + review deadlines. Uses your browser session cookie (no admin API key).",
   },
 ];
 
@@ -143,6 +149,13 @@ export const SECRET_SCHEMA: SecretField[] = [
     secret: true,
     provider: "fellow",
     help: "Set automatically after clicking 'Connect Fellow'.",
+  },
+  {
+    key: "LATTICE_COOKIE",
+    label: "Lattice session cookie",
+    secret: true,
+    provider: "lattice",
+    help: "Auto-populated by the 'Refresh Lattice session' bookmarklet below. Contains your active Lattice login cookies.",
   },
 ];
 

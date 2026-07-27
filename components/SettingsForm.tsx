@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { SecretView, Provider, ProviderMeta } from "@/lib/secrets";
 import { SlackBookmarklet } from "@/components/SlackBookmarklet";
+import { LatticeBookmarklet } from "@/components/LatticeBookmarklet";
 
 interface TestResult {
   name: string;
@@ -231,6 +232,11 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                   appOrigin={appOrigin}
                   workspaceMatch={slackWorkspaceMatch}
                 />
+              </div>
+            ) : null}
+            {p.id === "lattice" ? (
+              <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+                <LatticeBookmarklet appOrigin={appOrigin} />
               </div>
             ) : null}
             {p.id === "fellow" ? (

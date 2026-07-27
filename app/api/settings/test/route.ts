@@ -224,6 +224,68 @@ async function testGranola(): Promise<TestResult> {
   }
 }
 
+async function testLattice(): Promise<TestResult> {
+  const cookie = process.env.LATTICE_COOKIE;
+  if (!cookie) {
+    return {
+      name: "lattice",
+      configured: false,
+      ok: false,
+      error: "Use the 'Refresh Lattice session' bookmarklet.",
+    };
+  }
+  try {
+    const res = await fetch("https://app.latticehq.com/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", cookie },
+      body: JSON.stringify({ query: "query WhoAmI { me { id name email } }" }),
+    });
+    if (!res.ok) {
+      return {
+        name: "lattice",
+        configured: true,
+        ok: false,
+        error: `graphql HTTP ${res.status} — session likely expired; re-click the bookmarklet.`,
+      };
+    }
+    const body = (await res.json()) as {
+      data?: { me?: { id?: string; name?: string; email?: string } };
+      errors?: Array<{ message: string }>;
+    };
+    if (body.errors?.length) {
+      return {
+        name: "lattice",
+        configured: true,
+        ok: false,
+        error: body.errors[0].message.slice(0, 160),
+      };
+    }
+    const me = body.data?.me;
+    if (!me?.id) {
+      return {
+        name: "lattice",
+        configured: true,
+        ok: false,
+        error: "session accepted but me query returned no data",
+      };
+    }
+    return {
+      name: "lattice",
+      configured: true,
+      ok: true,
+      identity: me.name ?? me.email ?? me.id,
+      detail: me.email && me.email !== me.name ? me.email : undefined,
+    };
+  } catch (err) {
+    return {
+      name: "lattice",
+      configured: true,
+      ok: false,
+      error: (err as Error).message.slice(0, 160),
+    };
+  }
+}
+
 async function testFellow(): Promise<TestResult> {
   const clientId = process.env.FELLOW_CLIENT_ID;
   const refreshToken = process.env.FELLOW_REFRESH_TOKEN;
@@ -274,6 +336,7 @@ export async function POST() {
     testGoogle(),
     testGranola(),
     testFellow(),
+    testLattice(),
   ]);
   return NextResponse.json({ results });
 }

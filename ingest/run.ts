@@ -4,6 +4,7 @@ import { slackAdapter } from "./adapters/slack";
 import { gcalAdapter } from "./adapters/gcal";
 import { granolaAdapter } from "./adapters/granola";
 import { fellowAdapter } from "./adapters/fellow";
+import { latticeAdapter } from "./adapters/lattice";
 import { upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
 import { REPO_ROOT } from "@/lib/storage";
@@ -16,6 +17,7 @@ const ADAPTERS: Adapter[] = [
   gcalAdapter,
   granolaAdapter,
   fellowAdapter,
+  latticeAdapter,
 ];
 
 export interface IngestSummary {
