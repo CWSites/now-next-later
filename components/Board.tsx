@@ -58,11 +58,11 @@ export function Board({ initialTasks, dateLabel }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  async function createTask(title: string, bucket: Bucket) {
+  async function createTask(title: string, bucket: Bucket, url?: string) {
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title, bucket }),
+      body: JSON.stringify({ title, bucket, url }),
     });
     if (!res.ok) return;
     const { task } = await res.json();
@@ -237,7 +237,7 @@ export function Board({ initialTasks, dateLabel }: Props) {
             <Column
               bucket={bucket}
               tasks={grouped[bucket]}
-              onCreate={(title) => createTask(title, bucket)}
+              onCreate={(title, url) => createTask(title, bucket, url)}
               onUpdate={updateTask}
               onDelete={deleteTask}
             />

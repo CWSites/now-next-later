@@ -9,6 +9,13 @@ const CreateSchema = z.object({
   title: z.string().min(1).max(500),
   bucket: z.enum(["now", "next", "later"]).optional(),
   notes: z.string().max(5000).optional(),
+  url: z
+    .string()
+    .trim()
+    .max(2000)
+    .url("url must be a valid URL")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 
 export async function GET() {
