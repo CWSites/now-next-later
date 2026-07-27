@@ -157,6 +157,14 @@ export const SECRET_SCHEMA: SecretField[] = [
     provider: "lattice",
     help: "Auto-populated by the 'Refresh Lattice session' bookmarklet below. Contains your active Lattice login cookies.",
   },
+  {
+    key: "LATTICE_GRAPHQL_ORIGIN",
+    label: "Lattice workspace origin",
+    secret: false,
+    provider: "lattice",
+    placeholder: "https://your-workspace.latticehq.com",
+    help: "Auto-populated by the bookmarklet — the workspace subdomain where your session lives.",
+  },
 ];
 
 const SECRET_KEYS = new Set(SECRET_SCHEMA.map((f) => f.key));

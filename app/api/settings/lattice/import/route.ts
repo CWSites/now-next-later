@@ -30,20 +30,28 @@ export async function OPTIONS(req: Request) {
   });
 }
 
-async function verifyLatticeCookie(cookie: string): Promise<{ ok: boolean; user?: string; error?: string }> {
-  const res = await fetch("https://app.latticehq.com/graphql", {
+async function verifyLatticeCookie(
+  cookie: string,
+  graphqlOrigin: string,
+): Promise<{ ok: boolean; user?: string; error?: string }> {
+  const url = `${graphqlOrigin.replace(/\/+$/, "")}/graphql`;
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       accept: "application/json",
       cookie,
+      // Some GraphQL servers require an Origin header on cross-origin
+      // requests; sending the workspace's own origin keeps us honest.
+      origin: graphqlOrigin,
+      referer: `${graphqlOrigin}/`,
     },
     body: JSON.stringify({
       query: "query WhoAmI { me { id name email } }",
     }),
   });
   if (!res.ok) {
-    return { ok: false, error: `graphql HTTP ${res.status}` };
+    return { ok: false, error: `${url} → HTTP ${res.status}` };
   }
   const data = (await res.json()) as {
     data?: { me?: { id?: string; name?: string; email?: string } };
@@ -61,14 +69,30 @@ async function verifyLatticeCookie(cookie: string): Promise<{ ok: boolean; user?
 
 export async function POST(req: Request) {
   const headers = corsHeaders(req.headers.get("origin"));
-  const body = (await req.json().catch(() => null)) as { cookie?: string } | null;
+  const body = (await req.json().catch(() => null)) as {
+    cookie?: string;
+    graphqlOrigin?: string;
+  } | null;
 
   if (!body || typeof body.cookie !== "string" || body.cookie.trim().length === 0) {
-    return NextResponse.json({ error: "expected { cookie }" }, { status: 400, headers });
+    return NextResponse.json({ error: "expected { cookie, graphqlOrigin }" }, { status: 400, headers });
   }
   const cookie = body.cookie.trim();
+  // Fall back to app.latticehq.com if the bookmarklet is an older version.
+  const graphqlOrigin =
+    (typeof body.graphqlOrigin === "string" && body.graphqlOrigin.trim()) ||
+    "https://app.latticehq.com";
 
-  const check = await verifyLatticeCookie(cookie);
+  // Only accept origins under latticehq.com so a malicious page can't get us
+  // to POST cookies to arbitrary hosts.
+  if (!/^https:\/\/([a-z0-9-]+\.)*latticehq\.com$/i.test(graphqlOrigin)) {
+    return NextResponse.json(
+      { error: `graphqlOrigin must be a *.latticehq.com URL, got ${graphqlOrigin}` },
+      { status: 400, headers },
+    );
+  }
+
+  const check = await verifyLatticeCookie(cookie, graphqlOrigin);
   if (!check.ok) {
     return NextResponse.json(
       { error: check.error ?? "Lattice rejected the session cookie" },
@@ -77,6 +101,9 @@ export async function POST(req: Request) {
   }
 
   await applySecretsToEnv();
-  await updateSecrets({ LATTICE_COOKIE: cookie });
-  return NextResponse.json({ ok: true, user: check.user }, { headers });
+  await updateSecrets({
+    LATTICE_COOKIE: cookie,
+    LATTICE_GRAPHQL_ORIGIN: graphqlOrigin,
+  });
+  return NextResponse.json({ ok: true, user: check.user, graphqlOrigin }, { headers });
 }

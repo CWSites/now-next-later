@@ -9,12 +9,13 @@
  */
 
 const BOOKMARKLET_SRC = `(async()=>{try{
-  if(!location.host.endsWith('latticehq.com')){alert('Run this from an app.latticehq.com tab.');return;}
+  if(!location.host.endsWith('latticehq.com')){alert('Run this from a latticehq.com tab (e.g. your workspace subdomain).');return;}
   const cookie=document.cookie;
   if(!cookie){alert('No cookies visible on this page. Are you signed in?');return;}
-  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie})});
+  const graphqlOrigin=location.origin;
+  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin})});
   const data=await res.json();
-  if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+data.user+'.');}
+  if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+data.user+' at '+graphqlOrigin+'.');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status)));}
 }catch(e){alert('Error: '+e.message);}})();`;
 

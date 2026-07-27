@@ -226,6 +226,7 @@ async function testGranola(): Promise<TestResult> {
 
 async function testLattice(): Promise<TestResult> {
   const cookie = process.env.LATTICE_COOKIE;
+  const origin = process.env.LATTICE_GRAPHQL_ORIGIN ?? "https://app.latticehq.com";
   if (!cookie) {
     return {
       name: "lattice",
@@ -235,9 +236,15 @@ async function testLattice(): Promise<TestResult> {
     };
   }
   try {
-    const res = await fetch("https://app.latticehq.com/graphql", {
+    const res = await fetch(`${origin.replace(/\/+$/, "")}/graphql`, {
       method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json", cookie },
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        cookie,
+        origin,
+        referer: `${origin}/`,
+      },
       body: JSON.stringify({ query: "query WhoAmI { me { id name email } }" }),
     });
     if (!res.ok) {

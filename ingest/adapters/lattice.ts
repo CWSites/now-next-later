@@ -54,13 +54,21 @@ interface LatticeTodo {
   review?: { title?: string; name?: string };
 }
 
-async function gql<T>(cookie: string, query: string, variables?: Record<string, unknown>): Promise<T> {
-  const res = await fetch("https://app.latticehq.com/graphql", {
+async function gql<T>(
+  cookie: string,
+  origin: string,
+  query: string,
+  variables?: Record<string, unknown>,
+): Promise<T> {
+  const url = `${origin.replace(/\/+$/, "")}/graphql`;
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       accept: "application/json",
       cookie,
+      origin,
+      referer: `${origin}/`,
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -73,9 +81,10 @@ async function gql<T>(cookie: string, query: string, variables?: Record<string, 
   return body.data;
 }
 
-async function pickTodoField(cookie: string): Promise<string | null> {
+async function pickTodoField(cookie: string, origin: string): Promise<string | null> {
   const data = await gql<{ __schema: { queryType: { fields: Array<{ name: string }> } } }>(
     cookie,
+    origin,
     `{ __schema { queryType { fields { name } } } }`,
   );
   const names = data.__schema.queryType.fields.map((f) => f.name);
@@ -102,8 +111,9 @@ export const latticeAdapter: Adapter = {
 
   async ingest(): Promise<IngestItem[]> {
     const cookie = process.env.LATTICE_COOKIE!;
+    const origin = process.env.LATTICE_GRAPHQL_ORIGIN ?? "https://app.latticehq.com";
 
-    const field = await pickTodoField(cookie);
+    const field = await pickTodoField(cookie, origin);
     if (!field) {
       throw new Error(
         "Lattice schema doesn't expose a recognizable todo/action-item field. Skipping.",
@@ -139,12 +149,12 @@ export const latticeAdapter: Adapter = {
     `;
     let data: { [k: string]: LatticeTodo[] | { items?: LatticeTodo[]; nodes?: LatticeTodo[]; edges?: Array<{ node: LatticeTodo }> } };
     try {
-      data = await gql(cookie, query);
+      data = await gql(cookie, origin, query);
     } catch (err) {
       // Retry with a narrower field set if the wide query failed on unknown
       // fields. Titles + IDs are almost universal across GraphQL schemas.
       const narrow = `query NnlLatticeTodos { ${field} { id title name status dueDate url } }`;
-      data = await gql(cookie, narrow);
+      data = await gql(cookie, origin, narrow);
       void err;
     }
 
