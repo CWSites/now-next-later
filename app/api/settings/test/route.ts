@@ -144,24 +144,27 @@ async function testGoogle(): Promise<TestResult> {
   try {
     const { refreshAccessToken } = await import("@/lib/gcal-auth");
     const accessToken = await refreshAccessToken(refreshToken, clientId, clientSecret);
-    const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-      headers: { authorization: `Bearer ${accessToken}` },
-    });
+    // Hit the Calendar API itself so we're testing the scope the adapter
+    // actually uses (`calendar.readonly`), not `openid`/`profile`.
+    const res = await fetch(
+      "https://www.googleapis.com/calendar/v3/calendars/primary",
+      { headers: { authorization: `Bearer ${accessToken}` } },
+    );
     if (!res.ok) {
       return {
         name: "gcal",
         configured: true,
         ok: false,
-        error: `userinfo HTTP ${res.status}`,
+        error: `calendars/primary HTTP ${res.status}`,
       };
     }
-    const info = (await res.json()) as { email?: string; name?: string };
+    const data = (await res.json()) as { id?: string; summary?: string; timeZone?: string };
     return {
       name: "gcal",
       configured: true,
       ok: true,
-      identity: info.name ?? info.email ?? "authenticated",
-      detail: info.email && info.email !== info.name ? info.email : undefined,
+      identity: data.id ?? "authenticated",
+      detail: data.timeZone,
     };
   } catch (err) {
     return {
