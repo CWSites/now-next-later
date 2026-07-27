@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { getSecretsView } from "@/lib/secrets";
 import { SettingsForm } from "@/components/SettingsForm";
+import { SlackBookmarklet } from "@/components/SlackBookmarklet";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,11 @@ interface Params {
 export default async function SettingsPage({ searchParams }: Params) {
   const settings = await getSecretsView();
   const { gcal } = await searchParams;
+  const h = await headers();
+  const host = h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const appOrigin = `${proto}://${host}`;
+  const workspaceMatch = process.env.SLACK_WORKSPACE_MATCH ?? "your-workspace";
   return (
     <main className="mx-auto max-w-2xl p-6">
       <header className="mb-6 flex items-baseline justify-between">
@@ -44,6 +51,9 @@ export default async function SettingsPage({ searchParams }: Params) {
         </div>
       ) : null}
       <SettingsForm initial={settings} />
+      <div className="mt-8">
+        <SlackBookmarklet appOrigin={appOrigin} workspaceMatch={workspaceMatch} />
+      </div>
     </main>
   );
 }
