@@ -188,7 +188,15 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 });
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
-// eslint-disable-next-line no-console
-console.error("[now-next-later mcp] ready");
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  // eslint-disable-next-line no-console
+  console.error("[now-next-later mcp] ready");
+}
+
+main().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error("[now-next-later mcp] fatal", err);
+  process.exit(1);
+});

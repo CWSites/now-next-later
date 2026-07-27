@@ -191,6 +191,7 @@ export function Board({ initialTasks, dateLabel }: Props) {
 
   return (
     <DndContext
+      id="nnl-board"
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={onDragStart}
