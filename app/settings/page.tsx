@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { getSecretsView } from "@/lib/secrets";
+import { getSecretsView, PROVIDERS } from "@/lib/secrets";
 import { SettingsForm } from "@/components/SettingsForm";
-import { SlackBookmarklet } from "@/components/SlackBookmarklet";
 
 export const dynamic = "force-dynamic";
 
@@ -50,10 +49,12 @@ export default async function SettingsPage({ searchParams }: Params) {
             : `❌ Google Calendar connect failed: ${gcal.replace(/^error:/, "")}`}
         </div>
       ) : null}
-      <SettingsForm initial={settings} />
-      <div className="mt-8">
-        <SlackBookmarklet appOrigin={appOrigin} workspaceMatch={workspaceMatch} />
-      </div>
+      <SettingsForm
+        initial={settings}
+        providers={PROVIDERS}
+        appOrigin={appOrigin}
+        slackWorkspaceMatch={workspaceMatch}
+      />
     </main>
   );
 }

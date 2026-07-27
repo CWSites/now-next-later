@@ -12,50 +12,95 @@ import "server-only";
  * process.env.FOO keeps working.
  */
 
+export type Provider = "jira" | "slack" | "gcal" | "granola";
+
 export interface SecretField {
   key: string;
   label: string;
   /** true = mask in UI responses; false = safe to show in the clear (URLs, usernames). */
   secret: boolean;
+  /** Which provider group this field belongs to. Drives grouping in the settings UI. */
+  provider: Provider;
   placeholder?: string;
   help?: string;
 }
+
+export interface ProviderMeta {
+  id: Provider;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+/** Display order + metadata for each provider group. */
+export const PROVIDERS: ProviderMeta[] = [
+  {
+    id: "jira",
+    label: "Jira",
+    emoji: "🎯",
+    description: "Pulls in-flight tickets assigned to you.",
+  },
+  {
+    id: "slack",
+    label: "Slack",
+    emoji: "💬",
+    description: "Surfaces DMs with unread messages as Now tasks.",
+  },
+  {
+    id: "gcal",
+    label: "Google Calendar",
+    emoji: "🗓️",
+    description: "Today's meetings → Now; rest of the week → Next.",
+  },
+  {
+    id: "granola",
+    label: "Granola",
+    emoji: "📝",
+    description: "Recent meeting notes and open action items.",
+  },
+];
 
 export const SECRET_SCHEMA: SecretField[] = [
   {
     key: "JIRA_URL",
     label: "Jira URL",
     secret: false,
+    provider: "jira",
     placeholder: "https://your-org.atlassian.net",
   },
   {
     key: "JIRA_USERNAME",
     label: "Jira username (email)",
     secret: false,
+    provider: "jira",
     placeholder: "you@example.com",
   },
   {
     key: "JIRA_API_TOKEN",
     label: "Jira API token",
     secret: true,
+    provider: "jira",
     help: "id.atlassian.com → Security → API tokens.",
   },
   {
     key: "SLACK_MCP_XOXC_TOKEN",
     label: "Slack xoxc token",
     secret: true,
+    provider: "slack",
     help: "From Slack web app localStorage → localConfig_v2 → teams.<id>.token.",
   },
   {
     key: "SLACK_MCP_XOXD_TOKEN",
     label: "Slack xoxd cookie",
     secret: true,
+    provider: "slack",
     help: "The `d` cookie on slack.com.",
   },
   {
     key: "GOOGLE_CLIENT_ID",
     label: "Google OAuth Client ID",
     secret: false,
+    provider: "gcal",
     placeholder: "xxxx.apps.googleusercontent.com",
     help: "Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Desktop or Web).",
   },
@@ -63,17 +108,20 @@ export const SECRET_SCHEMA: SecretField[] = [
     key: "GOOGLE_CLIENT_SECRET",
     label: "Google OAuth Client Secret",
     secret: true,
+    provider: "gcal",
   },
   {
     key: "GOOGLE_REFRESH_TOKEN",
     label: "Google refresh token",
     secret: true,
+    provider: "gcal",
     help: "Set automatically after clicking 'Connect Google Calendar'.",
   },
   {
     key: "GRANOLA_API_KEY",
     label: "Granola API key",
     secret: true,
+    provider: "granola",
     help: "Granola desktop app → Settings → API keys → Create personal key. See docs.granola.ai/help-center/sharing/integrations/granola-api.",
   },
 ];
@@ -144,6 +192,7 @@ export interface SecretView {
   key: string;
   label: string;
   secret: boolean;
+  provider: Provider;
   placeholder?: string;
   help?: string;
   isSet: boolean;
@@ -166,6 +215,7 @@ export async function getSecretsView(): Promise<SecretView[]> {
       key: field.key,
       label: field.label,
       secret: field.secret,
+      provider: field.provider,
       placeholder: field.placeholder,
       help: field.help,
       isSet,
