@@ -233,6 +233,20 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                 />
               </div>
             ) : null}
+            {p.id === "fellow" ? (
+              <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  Fellow uses OAuth (with PKCE). No API key required. Click below to authorize
+                  and grant this app read-only access to your action items.
+                </p>
+                <a
+                  href="/api/settings/fellow/connect"
+                  className="mt-2 inline-block rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  Connect Fellow
+                </a>
+              </div>
+            ) : null}
           </section>
         );
       })}

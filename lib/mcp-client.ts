@@ -1,35 +1,60 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-export interface McpServerSpec {
+export interface McpStdioSpec {
+  kind: "stdio";
   command: string;
   args: string[];
   env?: Record<string, string>;
 }
 
+export interface McpHttpSpec {
+  kind: "http";
+  url: string;
+  /** Optional bearer token for authenticated MCP servers (Fellow, etc.). */
+  bearerToken?: string;
+}
+
+export type McpServerSpec = McpStdioSpec | McpHttpSpec;
+
 /**
- * Thin helper that spawns an MCP server subprocess, connects, exposes
- * `callTool`, and cleans up on close. Designed for short-lived ingest
- * runs — not a long-running connection pool.
+ * Thin helper that opens an MCP session (stdio subprocess or HTTP), exposes
+ * `callTool` / `listTools`, and cleans up on close. Designed for short-lived
+ * ingest runs — not a long-running connection pool.
  */
 export class McpSession {
   private client: Client;
-  private transport: StdioClientTransport;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private transport: any;
   private closed = false;
 
-  private constructor(client: Client, transport: StdioClientTransport) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private constructor(client: Client, transport: any) {
     this.client = client;
     this.transport = transport;
   }
 
   static async open(name: string, spec: McpServerSpec): Promise<McpSession> {
+    const client = new Client(
+      { name: `now-next-later-${name}`, version: "0.1.0" },
+      { capabilities: {} },
+    );
+    if (spec.kind === "http") {
+      const opts: ConstructorParameters<typeof StreamableHTTPClientTransport>[1] = {};
+      if (spec.bearerToken) {
+        opts.requestInit = {
+          headers: { authorization: `Bearer ${spec.bearerToken}` },
+        };
+      }
+      const transport = new StreamableHTTPClientTransport(new URL(spec.url), opts);
+      await client.connect(transport);
+      return new McpSession(client, transport);
+    }
     const transport = new StdioClientTransport({
       command: spec.command,
       args: spec.args,
       env: { ...process.env, ...(spec.env ?? {}) } as Record<string, string>,
-    });
-    const client = new Client({ name: `now-next-later-${name}`, version: "0.1.0" }, {
-      capabilities: {},
     });
     await client.connect(transport);
     return new McpSession(client, transport);

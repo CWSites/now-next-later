@@ -6,12 +6,12 @@ import { SettingsForm } from "@/components/SettingsForm";
 export const dynamic = "force-dynamic";
 
 interface Params {
-  searchParams: Promise<{ gcal?: string }>;
+  searchParams: Promise<{ gcal?: string; fellow?: string }>;
 }
 
 export default async function SettingsPage({ searchParams }: Params) {
   const settings = await getSecretsView();
-  const { gcal } = await searchParams;
+  const { gcal, fellow } = await searchParams;
   const h = await headers();
   const host = h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
@@ -47,6 +47,19 @@ export default async function SettingsPage({ searchParams }: Params) {
           {gcal === "connected"
             ? "✅ Google Calendar connected. Hit Refresh on the board to pull events."
             : `❌ Google Calendar connect failed: ${gcal.replace(/^error:/, "")}`}
+        </div>
+      ) : null}
+      {fellow ? (
+        <div
+          className={`mb-4 rounded-md border p-3 text-sm ${
+            fellow === "connected"
+              ? "border-green-300 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-200"
+              : "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+          }`}
+        >
+          {fellow === "connected"
+            ? "✅ Fellow connected. Hit Refresh on the board to pull action items."
+            : `❌ Fellow connect failed: ${fellow.replace(/^error:/, "")}`}
         </div>
       ) : null}
       <SettingsForm

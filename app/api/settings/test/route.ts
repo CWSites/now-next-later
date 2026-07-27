@@ -225,53 +225,43 @@ async function testGranola(): Promise<TestResult> {
 }
 
 async function testFellow(): Promise<TestResult> {
-  const base = process.env.FELLOW_API_BASE_URL;
-  const token = process.env.FELLOW_API_KEY;
-  if (!base || !token) {
+  const clientId = process.env.FELLOW_CLIENT_ID;
+  const refreshToken = process.env.FELLOW_REFRESH_TOKEN;
+  if (!clientId || !refreshToken) {
     return {
       name: "fellow",
       configured: false,
       ok: false,
-      error: "Missing FELLOW_API_BASE_URL or FELLOW_API_KEY.",
+      error: "Click 'Connect Fellow' in Settings to authorize.",
     };
   }
   try {
-    // /me is the canonical "who am I" endpoint in Fellow's docs sidebar.
-    // If they moved it, we surface the exact status so the user knows to
-    // fix the base URL.
-    const url = `${base.replace(/\/+$/, "")}/me`;
-    const res = await fetch(url, {
-      headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+    const { refreshAccessToken, FELLOW_MCP_URL } = await import("@/lib/fellow-oauth");
+    const { McpSession } = await import("@/lib/mcp-client");
+    const token = await refreshAccessToken(refreshToken, clientId);
+    const session = await McpSession.open("fellow-test", {
+      kind: "http",
+      url: FELLOW_MCP_URL,
+      bearerToken: token,
     });
-    if (!res.ok) {
+    try {
+      const tools = await session.listTools();
       return {
         name: "fellow",
         configured: true,
-        ok: false,
-        error: `${url.replace(base, "<base>")} HTTP ${res.status}`,
+        ok: true,
+        identity: `MCP connected`,
+        detail: `${tools.length} tool${tools.length === 1 ? "" : "s"} exposed`,
       };
+    } finally {
+      await session.close();
     }
-    const data = (await res.json()) as {
-      email?: string;
-      name?: string;
-      display_name?: string;
-      displayName?: string;
-    };
-    const identity =
-      data.name ?? data.display_name ?? data.displayName ?? data.email ?? "authenticated";
-    return {
-      name: "fellow",
-      configured: true,
-      ok: true,
-      identity,
-      detail: data.email && data.email !== identity ? data.email : undefined,
-    };
   } catch (err) {
     return {
       name: "fellow",
       configured: true,
       ok: false,
-      error: (err as Error).message.slice(0, 120),
+      error: (err as Error).message.slice(0, 160),
     };
   }
 }

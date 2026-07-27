@@ -131,19 +131,18 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "Granola desktop app → Settings → API keys → Create personal key. See docs.granola.ai/help-center/sharing/integrations/granola-api.",
   },
   {
-    key: "FELLOW_API_BASE_URL",
-    label: "Fellow API base URL",
+    key: "FELLOW_CLIENT_ID",
+    label: "Fellow OAuth client ID",
     secret: false,
     provider: "fellow",
-    placeholder: "https://api.fellow.app/v1",
-    help: "Copy from any 'Try it' example on developers.fellow.ai (host + version prefix, no trailing slash).",
+    help: "Auto-populated the first time you click 'Connect Fellow' (dynamic client registration).",
   },
   {
-    key: "FELLOW_API_KEY",
-    label: "Fellow API key",
+    key: "FELLOW_REFRESH_TOKEN",
+    label: "Fellow refresh token",
     secret: true,
     provider: "fellow",
-    help: "Fellow app → Settings → Developers → API keys → Create.",
+    help: "Set automatically after clicking 'Connect Fellow'.",
   },
 ];
 
