@@ -15,6 +15,8 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-ki
 import { BUCKETS, Bucket, Task } from "@/lib/types";
 import { Column } from "./Column";
 import { TaskCard } from "./TaskCard";
+import { RecentlyDone } from "./RecentlyDone";
+import { groupRecentlyCompleted, isArchivedForToday } from "@/lib/completions";
 
 interface Props {
   initialTasks: Task[];
@@ -30,11 +32,18 @@ export function Board({ initialTasks, dateLabel }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const grouped = useMemo(() => {
+    const now = new Date();
     const g: Record<Bucket, Task[]> = { now: [], next: [], later: [] };
-    for (const t of tasks) g[t.bucket].push(t);
+    for (const t of tasks) {
+      // Auto-archive: completed tasks from a previous day disappear from
+      // the columns but stay in the JSON (and show up in RecentlyDone).
+      // Un-ticking the box clears completedAt and brings them back.
+      if (isArchivedForToday(t, now)) continue;
+      g[t.bucket].push(t);
+    }
     for (const b of BUCKETS) {
-      // Completed tasks sink to the bottom; within each group, keep the
-      // user's manual ordering via `position`.
+      // Completed-today tasks sink to the bottom of their column; within
+      // each group, keep the user's manual ordering via `position`.
       g[b].sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
         return a.position - b.position;
@@ -42,6 +51,8 @@ export function Board({ initialTasks, dateLabel }: Props) {
     }
     return g;
   }, [tasks]);
+
+  const recentlyDone = useMemo(() => groupRecentlyCompleted(tasks), [tasks]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -247,6 +258,11 @@ export function Board({ initialTasks, dateLabel }: Props) {
       <DragOverlay>
         {activeTask ? <TaskCard task={activeTask} dragging /> : null}
       </DragOverlay>
+      <RecentlyDone
+        today={recentlyDone.today}
+        earlierThisWeek={recentlyDone.earlierThisWeek}
+        onUncomplete={(id) => updateTask(id, { completed: false })}
+      />
     </DndContext>
   );
 }
