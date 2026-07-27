@@ -58,6 +58,8 @@ export interface CreateTaskInput {
   notes?: string;
   source?: string;
   sourceRef?: string;
+  externalId?: string;
+  url?: string;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -77,6 +79,8 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       completedAt: null,
       source: input.source,
       sourceRef: input.sourceRef,
+      externalId: input.externalId,
+      url: input.url,
     };
     file.tasks.push(task);
     await writeFile(file, `add: ${task.title.slice(0, 60)}`);
@@ -158,6 +162,93 @@ export async function reorderBucket(bucket: Bucket, orderedIds: string[]): Promi
 
     await writeFile(file, `reorder: ${bucket}`);
     return file.tasks;
+  });
+}
+
+/**
+ * Upsert a task by externalId. If a task with the same externalId exists,
+ * mutable fields (title, notes, sourceRef, url) are updated but position,
+ * bucket, and completion state are preserved so the user's manual arrangement
+ * survives ingest re-runs.
+ */
+export async function upsertByExternalId(input: CreateTaskInput & { externalId: string }): Promise<{
+  task: Task;
+  created: boolean;
+  adopted: boolean;
+}> {
+  return serialize(async () => {
+    const file = await readFile();
+    let existing = file.tasks.find((t) => t.externalId === input.externalId);
+    let adopted = false;
+
+    // Title-fallback adoption: if no externalId match, look for an unclaimed
+    // task with the same title (case-insensitive) — typically one imported
+    // earlier from the morning-brief. Attach the externalId + url so future
+    // ingest runs find it cleanly. Never overwrites completion or position.
+    if (!existing) {
+      const norm = input.title.trim().toLowerCase();
+      // Strip common prefixes like "[PEPPERMINT-2826] " for matching.
+      const stripped = norm.replace(/^\[[a-z]+-\d+\]\s*/i, "");
+      existing = file.tasks.find(
+        (t) =>
+          !t.externalId &&
+          (t.title.trim().toLowerCase() === norm ||
+            t.title.trim().toLowerCase() === stripped),
+      );
+      if (existing) adopted = true;
+    }
+
+    const now = new Date().toISOString();
+
+    if (existing) {
+      let changed = false;
+      if (input.title && input.title.trim() !== existing.title) {
+        existing.title = input.title.trim();
+        changed = true;
+      }
+      if (input.notes !== undefined && input.notes !== existing.notes) {
+        existing.notes = input.notes?.trim() || undefined;
+        changed = true;
+      }
+      if (input.sourceRef !== undefined && input.sourceRef !== existing.sourceRef) {
+        existing.sourceRef = input.sourceRef;
+        changed = true;
+      }
+      if (input.url && input.url !== existing.url) {
+        existing.url = input.url;
+        changed = true;
+      }
+      if (input.source && !existing.source) existing.source = input.source;
+      if (adopted) {
+        existing.externalId = input.externalId;
+        changed = true;
+      }
+      if (changed) {
+        existing.updatedAt = now;
+        await writeFile(file, `${adopted ? "adopt" : "sync"}: ${existing.title.slice(0, 60)}`);
+      }
+      return { task: existing, created: false, adopted };
+    }
+
+    const bucket: Bucket = input.bucket ?? "now";
+    const task: Task = {
+      id: randomUUID(),
+      title: input.title.trim(),
+      notes: input.notes?.trim() || undefined,
+      bucket,
+      position: nextPosition(file.tasks, bucket),
+      completed: false,
+      createdAt: now,
+      updatedAt: now,
+      completedAt: null,
+      source: input.source,
+      sourceRef: input.sourceRef,
+      externalId: input.externalId,
+      url: input.url,
+    };
+    file.tasks.push(task);
+    await writeFile(file, `add: ${task.title.slice(0, 60)}`);
+    return { task, created: true, adopted: false };
   });
 }
 

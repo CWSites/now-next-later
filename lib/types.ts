@@ -17,6 +17,10 @@ export interface Task {
   source?: string;
   /** Optional short source blurb, e.g. "In Jira PEPPERMINT-2826." */
   sourceRef?: string;
+  /** Stable id from the source system, e.g. "jira:PEPPERMINT-2826". Used for upsert. */
+  externalId?: string;
+  /** Deep-link back to the origin (Jira issue, Slack message, calendar event, ...). */
+  url?: string;
 }
 
 export interface TasksFile {

@@ -63,16 +63,35 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
           className="flex-1 bg-transparent outline-none"
         />
       ) : (
-        <span
-          {...attributes}
-          {...listeners}
-          onDoubleClick={() => setEditing(true)}
-          className={`flex-1 cursor-grab select-none active:cursor-grabbing ${
-            task.completed ? "text-neutral-400 line-through" : ""
-          }`}
-        >
-          {task.title}
-        </span>
+        <div className="flex-1 min-w-0">
+          <div
+            {...attributes}
+            {...listeners}
+            onDoubleClick={() => setEditing(true)}
+            className={`cursor-grab select-none active:cursor-grabbing ${
+              task.completed ? "text-neutral-400 line-through" : ""
+            }`}
+          >
+            {task.title}
+          </div>
+          {task.sourceRef ? (
+            <div className="mt-0.5 truncate text-[11px] text-neutral-500">
+              {task.url ? (
+                <a
+                  href={task.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500 dark:decoration-neutral-700"
+                >
+                  {task.sourceRef}
+                </a>
+              ) : (
+                task.sourceRef
+              )}
+            </div>
+          ) : null}
+        </div>
       )}
       {onDelete ? (
         <button

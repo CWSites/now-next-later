@@ -18,11 +18,14 @@ import { TaskCard } from "./TaskCard";
 
 interface Props {
   initialTasks: Task[];
+  dateLabel: string;
 }
 
-export function Board({ initialTasks }: Props) {
+export function Board({ initialTasks, dateLabel }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastResult, setLastResult] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -71,6 +74,37 @@ export function Board({ initialTasks }: Props) {
   async function deleteTask(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+  }
+
+  async function refetchTasks() {
+    const res = await fetch("/api/tasks");
+    if (!res.ok) return;
+    const { tasks: fresh } = (await res.json()) as { tasks: Task[] };
+    setTasks(fresh);
+  }
+
+  async function refresh() {
+    setRefreshing(true);
+    setLastResult(null);
+    try {
+      const res = await fetch("/api/ingest", { method: "POST" });
+      const summary = await res.json();
+      const created = summary.totalCreated ?? 0;
+      const updated = summary.totalUpdated ?? 0;
+      const errored = summary.adapters?.filter((a: { error?: string }) => a.error) ?? [];
+      const skipped = summary.adapters?.filter((a: { ran: boolean }) => !a.ran) ?? [];
+      const parts: string[] = [];
+      if (created) parts.push(`${created} new`);
+      if (updated) parts.push(`${updated} synced`);
+      if (errored.length) parts.push(`${errored.length} errored`);
+      if (skipped.length) parts.push(`${skipped.length} skipped`);
+      setLastResult(parts.length ? parts.join(" · ") : "no changes");
+      await refetchTasks();
+    } catch (err) {
+      setLastResult(`error: ${(err as Error).message}`);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function persistOrder(bucket: Bucket, orderedIds: string[]) {
@@ -162,6 +196,22 @@ export function Board({ initialTasks }: Props) {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
+      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Now / Next / Later</h1>
+        <div className="flex items-baseline gap-3">
+          {lastResult ? (
+            <span className="text-xs text-neutral-500">{lastResult}</span>
+          ) : null}
+          <button
+            onClick={refresh}
+            disabled={refreshing}
+            className="rounded-md border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          >
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+          <p className="text-sm text-neutral-500">{dateLabel}</p>
+        </div>
+      </header>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {BUCKETS.map((bucket) => (
           <SortableContext

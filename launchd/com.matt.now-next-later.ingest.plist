@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs `npm run ingest` every weekday at 8:05 AM so the board is fresh
+  right after the morning-brief skill runs.
+
+  Install:
+    cp launchd/com.example.now-next-later.ingest.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.example.now-next-later.ingest.plist
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.example.now-next-later.ingest.plist
+    rm ~/Library/LaunchAgents/com.example.now-next-later.ingest.plist
+
+  Adjust the two paths below (WorkingDirectory + npm) for other machines.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.example.now-next-later.ingest</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/npm</string>
+    <string>run</string>
+    <string>ingest</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/path/to/now-next-later</string>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>5</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>$HOME/Library/Logs/now-next-later-ingest.log</string>
+  <key>StandardErrorPath</key>
+  <string>$HOME/Library/Logs/now-next-later-ingest.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
