@@ -8,17 +8,17 @@
  * POSTs the raw string to our /api/settings/lattice/import endpoint.
  */
 
+// NOTE: no `//` line comments inside the template. After whitespace is
+// collapsed at render time, the bookmarklet becomes a single line and any
+// `//` comment inside the source would swallow every remaining statement.
+// Use string-template variables and this outer comment block instead.
 const BOOKMARKLET_SRC = `(async()=>{try{
   if(!location.host.endsWith('latticehq.com')){alert('Run this from a latticehq.com tab (e.g. your workspace subdomain).');return;}
   const graphqlOrigin=location.origin;
-  // Step 1: prove that the browser itself can auth to /graphql. If this
-  // works but our server-side call doesn't, cookies are HttpOnly.
   const probe=await fetch(graphqlOrigin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({query:'query WhoAmI { me { id name email } }'})});
   const probeBody=await probe.json().catch(()=>({}));
   const probeOk=probe.ok && probeBody.data && probeBody.data.me && probeBody.data.me.id;
   if(!probeOk){alert('\u274C Even from inside Lattice this failed: '+probe.status+' '+(probeBody.errors?probeBody.errors[0].message:'no me')+'. You may not be signed in.');return;}
-  // Step 2: collect what we could possibly ship server-side. If HttpOnly is on,
-  // document.cookie will be missing the important cookies — we detect that below.
   const cookie=document.cookie;
   const storageDump={};
   try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&/token|auth|session|jwt|bearer/i.test(k))storageDump['ls:'+k]=localStorage.getItem(k);}}catch(e){}
