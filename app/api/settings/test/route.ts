@@ -121,8 +121,60 @@ async function testSlack(): Promise<TestResult> {
   }
 }
 
+async function testGoogle(): Promise<TestResult> {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+  if (!clientId || !clientSecret) {
+    return {
+      name: "gcal",
+      configured: false,
+      ok: false,
+      error: "Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET.",
+    };
+  }
+  if (!refreshToken) {
+    return {
+      name: "gcal",
+      configured: false,
+      ok: false,
+      error: "Click 'Connect Google Calendar' to grant access.",
+    };
+  }
+  try {
+    const { refreshAccessToken } = await import("@/lib/gcal-auth");
+    const accessToken = await refreshAccessToken(refreshToken, clientId, clientSecret);
+    const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      return {
+        name: "gcal",
+        configured: true,
+        ok: false,
+        error: `userinfo HTTP ${res.status}`,
+      };
+    }
+    const info = (await res.json()) as { email?: string; name?: string };
+    return {
+      name: "gcal",
+      configured: true,
+      ok: true,
+      identity: info.name ?? info.email ?? "authenticated",
+      detail: info.email && info.email !== info.name ? info.email : undefined,
+    };
+  } catch (err) {
+    return {
+      name: "gcal",
+      configured: true,
+      ok: false,
+      error: (err as Error).message.slice(0, 120),
+    };
+  }
+}
+
 export async function POST() {
   await applySecretsToEnv();
-  const results = await Promise.all([testJira(), testSlack()]);
+  const results = await Promise.all([testJira(), testSlack(), testGoogle()]);
   return NextResponse.json({ results });
 }

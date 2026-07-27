@@ -147,6 +147,19 @@ export function SettingsForm({ initial }: Props) {
         </button>
         {status ? <span className="text-xs text-neutral-500">{status}</span> : null}
       </div>
+      <div className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="font-medium">Google Calendar</div>
+        <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+          After saving your Client ID and Client Secret above, click below to grant this app
+          read-only access to your calendar. You&apos;ll be redirected to Google, then back here.
+        </p>
+        <a
+          href="/api/settings/gcal/connect"
+          className="mt-2 inline-block rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
+        >
+          Connect Google Calendar
+        </a>
+      </div>
       {testResults ? (
         <ul className="mt-4 space-y-2 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
           {testResults.map((r) => (

@@ -52,6 +52,24 @@ export const SECRET_SCHEMA: SecretField[] = [
     secret: true,
     help: "The `d` cookie on slack.com.",
   },
+  {
+    key: "GOOGLE_CLIENT_ID",
+    label: "Google OAuth Client ID",
+    secret: false,
+    placeholder: "xxxx.apps.googleusercontent.com",
+    help: "Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Desktop or Web).",
+  },
+  {
+    key: "GOOGLE_CLIENT_SECRET",
+    label: "Google OAuth Client Secret",
+    secret: true,
+  },
+  {
+    key: "GOOGLE_REFRESH_TOKEN",
+    label: "Google refresh token",
+    secret: true,
+    help: "Set automatically after clicking 'Connect Google Calendar'.",
+  },
 ];
 
 const SECRET_KEYS = new Set(SECRET_SCHEMA.map((f) => f.key));
