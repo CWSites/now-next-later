@@ -3,6 +3,15 @@
 import { useState } from "react";
 import type { SecretView } from "@/lib/secrets";
 
+interface TestResult {
+  name: string;
+  configured: boolean;
+  ok: boolean;
+  identity?: string;
+  detail?: string;
+  error?: string;
+}
+
 interface Props {
   initial: SecretView[];
 }
@@ -12,6 +21,8 @@ export function SettingsForm({ initial }: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResults, setTestResults] = useState<TestResult[] | null>(null);
 
   function setDraft(key: string, value: string) {
     setDrafts((d) => ({ ...d, [key]: value }));
@@ -43,6 +54,23 @@ export function SettingsForm({ initial }: Props) {
 
   function clear(key: string) {
     setDraft(key, "");
+  }
+
+  async function test() {
+    setTesting(true);
+    setTestResults(null);
+    try {
+      const res = await fetch("/api/settings/test", { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { results } = (await res.json()) as { results: TestResult[] };
+      setTestResults(results);
+    } catch (err) {
+      setTestResults([
+        { name: "error", configured: false, ok: false, error: (err as Error).message },
+      ]);
+    } finally {
+      setTesting(false);
+    }
   }
 
   const dirty = Object.keys(drafts).length > 0;
@@ -108,8 +136,37 @@ export function SettingsForm({ initial }: Props) {
         >
           {saving ? "Saving…" : "Save"}
         </button>
+        <button
+          type="button"
+          onClick={() => void test()}
+          disabled={testing || dirty}
+          title={dirty ? "Save changes before testing" : "Verify saved credentials against Jira and Slack"}
+          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+        >
+          {testing ? "Testing…" : "Test connections"}
+        </button>
         {status ? <span className="text-xs text-neutral-500">{status}</span> : null}
       </div>
+      {testResults ? (
+        <ul className="mt-4 space-y-2 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+          {testResults.map((r) => (
+            <li key={r.name} className="flex items-baseline gap-2">
+              <span aria-hidden className="text-base leading-none">
+                {r.ok ? "✅" : r.configured ? "❌" : "➖"}
+              </span>
+              <span className="font-medium capitalize">{r.name}</span>
+              {r.ok ? (
+                <span className="text-neutral-600 dark:text-neutral-400">
+                  — authenticated as <span className="font-mono">{r.identity}</span>
+                  {r.detail ? <span className="text-neutral-500"> ({r.detail})</span> : null}
+                </span>
+              ) : (
+                <span className="text-neutral-500">— {r.error ?? "not configured"}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </form>
   );
 }
