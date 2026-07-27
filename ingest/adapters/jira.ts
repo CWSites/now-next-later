@@ -38,7 +38,7 @@ export const jiraAdapter: Adapter = {
       .split(",")
       .map((s) => `"${s.trim()}"`)
       .join(",");
-    const jql = `assignee = currentUser() AND statusCategory != Done AND (duedate <= endOfMonth() OR status in (${inflightStatuses})) ORDER BY duedate ASC, priority DESC`;
+    const jql = `assignee = currentUser() AND statusCategory != Done AND issuetype != Epic AND (duedate <= endOfMonth() OR status in (${inflightStatuses})) ORDER BY duedate ASC, priority DESC`;
     const url = `${base}/rest/api/3/search/jql`;
 
     const res = await fetch(url, {

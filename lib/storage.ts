@@ -201,15 +201,11 @@ export async function upsertByExternalId(input: CreateTaskInput & { externalId: 
     const now = new Date().toISOString();
 
     if (existing) {
+      // Preservation invariant: once a task exists, the user owns its
+      // title, bucket, position, completed state, and notes. Adapters may
+      // only refresh the metadata pointing back at the source: sourceRef
+      // and url. This keeps re-ingest safe and non-destructive.
       let changed = false;
-      if (input.title && input.title.trim() !== existing.title) {
-        existing.title = input.title.trim();
-        changed = true;
-      }
-      if (input.notes !== undefined && input.notes !== existing.notes) {
-        existing.notes = input.notes?.trim() || undefined;
-        changed = true;
-      }
       if (input.sourceRef !== undefined && input.sourceRef !== existing.sourceRef) {
         existing.sourceRef = input.sourceRef;
         changed = true;
