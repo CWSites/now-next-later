@@ -4,6 +4,7 @@ import { slackAdapter } from "./adapters/slack";
 import { upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
 import { REPO_ROOT } from "@/lib/storage";
+import { applySecretsToEnv } from "@/lib/secrets";
 
 // Register adapters here. New adapters just need to be added to this list.
 const ADAPTERS: Adapter[] = [jiraAdapter, slackAdapter];
@@ -17,6 +18,7 @@ export interface IngestSummary {
 }
 
 export async function runIngest(): Promise<IngestSummary> {
+  await applySecretsToEnv();
   await ensurePulled(REPO_ROOT);
   const startedAt = new Date().toISOString();
   const results: AdapterResult[] = [];

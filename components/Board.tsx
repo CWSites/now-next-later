@@ -209,6 +209,12 @@ export function Board({ initialTasks, dateLabel }: Props) {
           >
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
+          <a
+            href="/settings"
+            className="text-xs text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
+          >
+            settings
+          </a>
           <p className="text-sm text-neutral-500">{dateLabel}</p>
         </div>
       </header>

@@ -1,6 +1,7 @@
 node_modules
 .next
 .env.local
+secrets.local.json
 *.log
 .DS_Store
 next-env.d.ts
