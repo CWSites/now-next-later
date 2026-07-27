@@ -32,7 +32,14 @@ export function Board({ initialTasks, dateLabel }: Props) {
   const grouped = useMemo(() => {
     const g: Record<Bucket, Task[]> = { now: [], next: [], later: [] };
     for (const t of tasks) g[t.bucket].push(t);
-    for (const b of BUCKETS) g[b].sort((a, b) => a.position - b.position);
+    for (const b of BUCKETS) {
+      // Completed tasks sink to the bottom; within each group, keep the
+      // user's manual ordering via `position`.
+      g[b].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return a.position - b.position;
+      });
+    }
     return g;
   }, [tasks]);
 
