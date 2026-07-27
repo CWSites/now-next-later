@@ -39,34 +39,17 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
     <li
       ref={setNodeRef}
       style={style}
-      className={`group flex items-start gap-2 rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm shadow-sm dark:border-neutral-800 dark:bg-neutral-900 ${
+      {...attributes}
+      {...listeners}
+      className={`group flex items-start gap-2 rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm shadow-sm cursor-grab touch-none select-none active:cursor-grabbing dark:border-neutral-800 dark:bg-neutral-900 ${
         dragging ? "ring-2 ring-blue-400" : ""
       }`}
     >
-      {/* Explicit drag handle so the affordance is obvious. The listeners
-          live here (and on the title, for backward compat) so users can
-          grab either the gripper or the text. */}
-      <button
-        type="button"
-        aria-label="Drag to reorder or move"
-        {...attributes}
-        {...listeners}
-        className="mt-0.5 shrink-0 cursor-grab touch-none select-none px-0.5 text-neutral-300 hover:text-neutral-600 active:cursor-grabbing dark:text-neutral-600 dark:hover:text-neutral-300"
-        onClick={(e) => e.preventDefault()}
-      >
-        <svg width="10" height="16" viewBox="0 0 10 16" aria-hidden fill="currentColor">
-          <circle cx="2" cy="3" r="1.3" />
-          <circle cx="2" cy="8" r="1.3" />
-          <circle cx="2" cy="13" r="1.3" />
-          <circle cx="8" cy="3" r="1.3" />
-          <circle cx="8" cy="8" r="1.3" />
-          <circle cx="8" cy="13" r="1.3" />
-        </svg>
-      </button>
       <input
         type="checkbox"
         checked={task.completed}
         onChange={onToggle}
+        onPointerDown={(e) => e.stopPropagation()}
         className="mt-1 h-4 w-4 shrink-0 cursor-pointer"
       />
       {editing ? (
@@ -87,12 +70,8 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
       ) : (
         <div className="flex-1 min-w-0">
           <div
-            {...attributes}
-            {...listeners}
             onDoubleClick={() => setEditing(true)}
-            className={`cursor-grab select-none active:cursor-grabbing ${
-              task.completed ? "text-neutral-400 line-through" : ""
-            }`}
+            className={task.completed ? "text-neutral-400 line-through" : ""}
           >
             {task.title}
           </div>
@@ -104,6 +83,7 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   className="underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500 dark:decoration-neutral-700"
                 >
                   {/* Fall back to a compact host+path when there's no
@@ -119,7 +99,9 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
       )}
       {onDelete ? (
         <button
+          type="button"
           onClick={onDelete}
+          onPointerDown={(e) => e.stopPropagation()}
           aria-label="Delete task"
           className="opacity-0 transition-opacity group-hover:opacity-100 text-neutral-400 hover:text-red-500"
         >
