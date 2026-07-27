@@ -18,7 +18,7 @@ export function RecentlyDone({ today, earlierThisWeek, onUncomplete }: Props) {
 
   if (total === 0) {
     return (
-      <section className="mt-6 rounded-lg border border-neutral-200 bg-white/40 p-4 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <section className="rounded-lg border border-neutral-200 bg-white/40 p-4 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/40">
         <h2 className="text-base font-semibold text-neutral-700 dark:text-neutral-300">
           Recently completed
         </h2>
@@ -28,7 +28,7 @@ export function RecentlyDone({ today, earlierThisWeek, onUncomplete }: Props) {
   }
 
   return (
-    <section className="mt-6 rounded-lg border border-neutral-200 bg-white/60 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60">
+    <section className="rounded-lg border border-neutral-200 bg-white/60 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60">
       <header className="mb-3 flex items-baseline justify-between">
         <div>
           <h2 className="text-base font-semibold">Recently completed</h2>

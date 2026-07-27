@@ -18,6 +18,30 @@ import { TaskCard } from "./TaskCard";
 import { RecentlyDone } from "./RecentlyDone";
 import { groupRecentlyCompleted, isArchivedForToday } from "@/lib/completions";
 
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`-mb-px border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
+        active
+          ? "border-neutral-800 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
+          : "border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 interface Props {
   initialTasks: Task[];
   dateLabel: string;
@@ -28,6 +52,7 @@ export function Board({ initialTasks, dateLabel }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [view, setView] = useState<"board" | "done">("board");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -237,7 +262,26 @@ export function Board({ initialTasks, dateLabel }: Props) {
           <p className="text-sm text-neutral-500">{dateLabel}</p>
         </div>
       </header>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* Tab strip: keep this outside the conditional so the header of the
+          page doesn't jump when switching views. */}
+      <div className="mb-4 flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800">
+        <TabButton active={view === "board"} onClick={() => setView("board")}>
+          Board
+        </TabButton>
+        <TabButton active={view === "done"} onClick={() => setView("done")}>
+          Recently completed
+          {recentlyDone.today.length + recentlyDone.earlierThisWeek.length > 0 ? (
+            <span className="ml-1.5 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+              {recentlyDone.today.length + recentlyDone.earlierThisWeek.length}
+            </span>
+          ) : null}
+        </TabButton>
+      </div>
+
+      {/* Board view is hidden (not unmounted) when on the done tab so the
+          drag state, column refs, and any in-flight edits survive tab
+          switches without a re-render blip. */}
+      <div className={view === "board" ? "grid grid-cols-1 gap-4 md:grid-cols-3" : "hidden"}>
         {BUCKETS.map((bucket) => (
           <SortableContext
             key={bucket}
@@ -258,11 +302,13 @@ export function Board({ initialTasks, dateLabel }: Props) {
       <DragOverlay>
         {activeTask ? <TaskCard task={activeTask} dragging /> : null}
       </DragOverlay>
-      <RecentlyDone
-        today={recentlyDone.today}
-        earlierThisWeek={recentlyDone.earlierThisWeek}
-        onUncomplete={(id) => updateTask(id, { completed: false })}
-      />
+      {view === "done" ? (
+        <RecentlyDone
+          today={recentlyDone.today}
+          earlierThisWeek={recentlyDone.earlierThisWeek}
+          onUncomplete={(id) => updateTask(id, { completed: false })}
+        />
+      ) : null}
     </DndContext>
   );
 }
