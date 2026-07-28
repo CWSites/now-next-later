@@ -20,22 +20,27 @@
 const BOOKMARKLET_SRC = `(async()=>{try{
   if(!location.host.endsWith('latticehq.com')){alert('Run this from a latticehq.com tab.');return;}
   const origin=location.origin;
-  const query='query OneOnOnesActionItemsSidebarQuery { viewer { user { name preferredName userActiveOneOnOneRelationshipUsers { entityId name preferredName viewerUserRelationship { oneOnOneMeetings(first: 1) { edges { node { entityId actionItems { entityId completedAt dueDate body createdAt assigneeUser { viewerIsUser entityId name id } id } id } } } id } id } id } id } }';
+  const query='query OneOnOnesActionItemsSidebarQuery { viewer { user { entityId name preferredName userActiveOneOnOneRelationshipUsers { entityId name preferredName viewerUserRelationship { oneOnOneMeetings(first: 1) { edges { node { entityId actionItems { entityId completedAt dueDate body createdAt assigneeUser { entityId viewerIsUser name id } id } id } } } id } id } id } id } }';
   const gqlRes=await fetch(origin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json; charset=utf-8','x-lattice-deployment':'us-prod-1','x-lattice-is-real-company':'true','x-lattice-market-segment':'smb_high','x-lattice-products':'{"OneOnOnesActionItemsSidebarQuery":"oneOnOnes"}','x-timezone':Intl.DateTimeFormat().resolvedOptions().timeZone||'America/New_York'},body:JSON.stringify({id:'OneOnOnesActionItemsSidebarQuery',query})});
   const gqlBody=await gqlRes.json().catch(()=>({}));
   if(!gqlRes.ok||gqlBody.errors){alert('\u274C Lattice GraphQL failed: '+gqlRes.status+' '+(gqlBody.errors?gqlBody.errors[0].message:'').slice(0,200)+'. Sign in to Lattice again then retry.');return;}
   const who=gqlBody.data&&gqlBody.data.viewer&&gqlBody.data.viewer.user;
+  const myEntityId=who&&who.entityId;
+  if(!myEntityId){alert('\u274C Could not determine your Lattice user id. Sign in and retry.');return;}
   const rels=(who&&who.userActiveOneOnOneRelationshipUsers)||[];
   const items=[];
   const stripMarkup=s=>String(s||'').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();
+  let totalActs=0,mineActs=0;
   for(const rel of rels){
     const other=rel.preferredName||rel.name||'someone';
     const edges=(rel.viewerUserRelationship&&rel.viewerUserRelationship.oneOnOneMeetings&&rel.viewerUserRelationship.oneOnOneMeetings.edges)||[];
     for(const edge of edges){
       const acts=(edge&&edge.node&&edge.node.actionItems)||[];
       for(const a of acts){
+        totalActs++;
         if(a.completedAt) continue;
-        if(!a.assigneeUser||!a.assigneeUser.viewerIsUser) continue;
+        if(!a.assigneeUser||a.assigneeUser.entityId!==myEntityId) continue;
+        mineActs++;
         const body=stripMarkup(a.body);
         if(!body) continue;
         const dueStr=a.dueDate?' (due '+new Date(a.dueDate).toLocaleDateString([],{month:'short',day:'numeric'})+')':'';
@@ -45,7 +50,7 @@ const BOOKMARKLET_SRC = `(async()=>{try{
   }
   const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({items,who:who&&(who.name||who.preferredName)})});
   const data=await res.json();
-  if(res.ok){const parts=[];if(data.created)parts.push(data.created+' new');if(data.updated)parts.push(data.updated+' synced');if(data.removed)parts.push(data.removed+' removed');alert('\u2705 Lattice sync complete: '+(parts.length?parts.join(', '):'no changes')+' ('+data.accepted+' open items assigned to you).');}
+  if(res.ok){const parts=[];if(data.created)parts.push(data.created+' new');if(data.updated)parts.push(data.updated+' synced');if(data.removed)parts.push(data.removed+' removed');alert('\u2705 Lattice sync: '+(parts.length?parts.join(', '):'no changes')+'.\\n\\n'+mineActs+' of '+totalActs+' open items across your 1:1s are assigned to you.');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status)));}
 }catch(e){alert('Error: '+e.message);}})();`;
 
