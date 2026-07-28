@@ -166,6 +166,16 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
               {fields.map((field) => {
                 const draft = drafts[field.key];
                 const touched = draft !== undefined;
+                // Non-secret fields (URLs, filter lists, usernames) should
+                // show their saved value in the input so the user can edit
+                // in place. Secret fields keep the paste-to-replace UX
+                // since we don't have the plaintext value in the browser.
+                const showAsValue = field.isSet && !field.secret;
+                const displayValue = touched
+                  ? draft
+                  : showAsValue
+                    ? field.preview
+                    : "";
                 return (
                   <div key={field.key} className="flex flex-col gap-1">
                     <label htmlFor={field.key} className="text-sm font-medium">
@@ -181,13 +191,11 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                         autoComplete="off"
                         spellCheck={false}
                         placeholder={
-                          field.isSet
-                            ? field.secret
-                              ? `saved (${field.preview}) — paste to replace`
-                              : field.preview
+                          field.isSet && field.secret
+                            ? `saved (${field.preview}) — paste to replace`
                             : (field.placeholder ?? "")
                         }
-                        value={touched ? draft : ""}
+                        value={displayValue}
                         onChange={(e) => setDraft(field.key, e.target.value)}
                         className="flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-950"
                       />
