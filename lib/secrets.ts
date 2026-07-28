@@ -259,8 +259,11 @@ export async function applySecretsToEnv(): Promise<void> {
 
 function mask(value: string): string {
   if (!value) return "";
-  if (value.length <= 8) return "•".repeat(value.length);
-  return `${value.slice(0, 4)}${"•".repeat(Math.min(12, value.length - 8))}${value.slice(-4)}`;
+  // Hide everything except the last 4 characters. Cap the asterisk run so
+  // very long tokens don't produce a 200-character preview.
+  if (value.length <= 4) return "*".repeat(value.length);
+  const hidden = Math.min(12, value.length - 4);
+  return `${"*".repeat(hidden)}${value.slice(-4)}`;
 }
 
 export interface SecretView {
