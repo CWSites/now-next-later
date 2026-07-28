@@ -114,7 +114,7 @@ export async function runIngest(): Promise<IngestSummary> {
             continue;
           }
         }
-        const { created: wasCreated } = await upsertByExternalId({
+        const { created: wasCreated, tombstoned } = await upsertByExternalId({
           externalId: item.externalId,
           title: item.title,
           bucket: item.bucket,
@@ -123,6 +123,11 @@ export async function runIngest(): Promise<IngestSummary> {
           sourceRef: item.sourceRef,
           url: item.url,
         });
+        if (tombstoned) {
+          // User deleted this externalId before — keep it dead.
+          skipped++;
+          continue;
+        }
         if (wasCreated) created++;
         else updated++;
       }

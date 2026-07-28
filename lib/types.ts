@@ -23,7 +23,26 @@ export interface Task {
   url?: string;
 }
 
+/**
+ * Persistent record of an externalId whose task the user explicitly deleted
+ * (as opposed to completed). We keep these so that when an adapter re-fetches
+ * the same source item on the next refresh, we don't silently re-create the
+ * task the user already told us they don't want on the board.
+ *
+ * Completed tasks are NOT tombstoned — they stay in the tasks list as history
+ * and auto-archive off the columns at end of day.
+ */
+export interface Tombstone {
+  externalId: string;
+  deletedAt: string;
+  /** Snapshot of the title at deletion time — handy for debugging. */
+  title?: string;
+  /** Where it came from (jira, slack, gcal, ...). */
+  source?: string;
+}
+
 export interface TasksFile {
   version: 1;
   tasks: Task[];
+  tombstones?: Tombstone[];
 }
