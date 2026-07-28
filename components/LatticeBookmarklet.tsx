@@ -16,23 +16,23 @@ const BOOKMARKLET_SRC = `(async()=>{try{
   if(!location.host.endsWith('latticehq.com')){alert('Run this from a latticehq.com tab (e.g. your workspace subdomain).');return;}
   const graphqlOrigin=location.origin;
   const gql=async(query)=>{const r=await fetch(graphqlOrigin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({query})});return{status:r.status,body:await r.json().catch(()=>({}))};};
-  const introspection=await gql('{__schema{queryType{fields{name type{name kind ofType{name kind}}}}}}');
-  if(!introspection.body.data){alert('\u274C Even from inside Lattice this failed: '+introspection.status+' '+(introspection.body.errors?introspection.body.errors[0].message:'introspection blocked')+'. You may not be signed in.');return;}
-  const fields=introspection.body.data.__schema.queryType.fields;
-  const meCandidates=['me','viewer','currentUser','self','user','whoami','currentViewer'];
-  const meField=meCandidates.map(n=>fields.find(f=>f.name.toLowerCase()===n.toLowerCase())).find(Boolean);
-  if(!meField){alert('\u274C No identity field found. Top-level Query fields: '+fields.slice(0,20).map(f=>f.name).join(', ')+'...');return;}
-  const probe=await gql('{'+meField.name+'{id name email}}');
-  if(!probe.body.data||!probe.body.data[meField.name]||!probe.body.data[meField.name].id){
-    const narrow=await gql('{'+meField.name+'{id}}');
-    if(!narrow.body.data||!narrow.body.data[meField.name]){alert('\u274C Query '+meField.name+' returned nothing: '+JSON.stringify(probe.body.errors||probe.body).slice(0,200));return;}
-    probe.body=narrow.body;
+  const meCandidates=['viewer','me','currentUser','self','user','whoami','currentViewer','currentMember','member'];
+  let meField=null,probeUser=null,lastErr='';
+  for(const cand of meCandidates){
+    const r=await gql('{'+cand+'{id name email}}');
+    if(r.body.data&&r.body.data[cand]&&r.body.data[cand].id){meField=cand;probeUser=r.body.data[cand];break;}
+    if(r.body.errors&&r.body.errors[0]){
+      const msg=r.body.errors[0].message;
+      if(!/Cannot query field|Unknown field|Unknown argument|did you mean/i.test(msg)){lastErr=cand+': '+msg;}
+      const narrow=await gql('{'+cand+'{id}}');
+      if(narrow.body.data&&narrow.body.data[cand]&&narrow.body.data[cand].id){meField=cand;probeUser=narrow.body.data[cand];break;}
+    }
   }
-  const probeUser=probe.body.data[meField.name];
+  if(!meField){alert('\u274C None of these identity fields exist: '+meCandidates.join(', ')+'.'+(lastErr?'\\n\\nLast error: '+lastErr:'')+'\\n\\nOpen Lattice DevTools \u2192 Network \u2192 pick any request to /graphql \u2192 look at the "operationName" or query \u2192 tell me the real field name.');return;}
   const cookie=document.cookie;
-  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin,meField:meField.name,probeUser})});
+  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin,meField,probeUser})});
   const data=await res.json();
-  if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+data.user+' via '+meField.name+' at '+graphqlOrigin+'.');}
+  if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+data.user+' via '+meField+' at '+graphqlOrigin+'.');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status))+'\\n\\nHint: '+(data.hint||'?'));}
 }catch(e){alert('Error: '+e.message);}})();`;
 
