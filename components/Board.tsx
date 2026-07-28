@@ -29,6 +29,7 @@ import { BUCKETS, Bucket, Task } from "@/lib/types";
 import { Column } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { RecentlyDone } from "./RecentlyDone";
+import { IcalDate } from "./IcalDate";
 import { groupRecentlyCompleted, isArchivedForToday } from "@/lib/completions";
 
 function TabButton({
@@ -445,12 +446,15 @@ export function Board({ initialTasks, dateLabel }: Props) {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      <header className="mb-4">
-        <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-          Now <span className="text-neutral-300 dark:text-neutral-700">/</span> Next{" "}
-          <span className="text-neutral-300 dark:text-neutral-700">/</span> Later
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500">{dateLabel}</p>
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+            Now <span className="text-neutral-300 dark:text-neutral-700">/</span> Next{" "}
+            <span className="text-neutral-300 dark:text-neutral-700">/</span> Later
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500">{dateLabel}</p>
+        </div>
+        <IcalDate />
       </header>
       {lastErrors.length > 0 && showErrors ? (
         <ul className="mb-4 space-y-1 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
