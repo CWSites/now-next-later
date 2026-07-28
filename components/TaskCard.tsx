@@ -49,6 +49,10 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
         type="checkbox"
         checked={task.completed}
         onChange={onToggle}
+        // When onToggle isn't provided (e.g. the DragOverlay ghost card),
+        // React would warn about a controlled checkbox with no onChange.
+        // Mark it read-only in that case to keep it a controlled element.
+        readOnly={!onToggle}
         onPointerDown={(e) => e.stopPropagation()}
         className="mt-1 h-4 w-4 shrink-0 cursor-pointer"
       />
