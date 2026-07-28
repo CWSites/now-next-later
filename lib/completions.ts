@@ -64,7 +64,10 @@ export function groupRecentlyCompleted(tasks: Task[], now: Date = new Date()): C
  * rejoins its column.
  */
 export function isArchivedForToday(task: Task, now: Date = new Date()): boolean {
-  if (!task.completed || !task.completedAt) return false;
+  if (!task.completed) return false;
+  // Explicit early-archive (manual "Archive completed" button) always wins.
+  if (task.archived) return true;
+  if (!task.completedAt) return false;
   const at = new Date(task.completedAt).getTime();
   if (Number.isNaN(at)) return false;
   return at < startOfLocalDay(now).getTime();

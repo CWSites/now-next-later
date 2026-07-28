@@ -7,6 +7,7 @@ const UpdateSchema = z.object({
   notes: z.string().max(5000).nullable().optional(),
   bucket: z.enum(["now", "next", "later"]).optional(),
   completed: z.boolean().optional(),
+  archived: z.boolean().optional(),
   position: z.number().int().nonnegative().optional(),
 });
 

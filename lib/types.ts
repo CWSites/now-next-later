@@ -13,6 +13,11 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   completedAt?: string | null;
+  /** When true, hide from the main board even if completedAt is still today.
+   * Set by the manual "Archive completed" button; auto-cleared when the
+   * task is un-completed. Auto-archive at midnight is separately derived
+   * from completedAt, so this field is only for early-archival intent. */
+  archived?: boolean;
   /** Optional provenance, e.g. "morning-brief". Used to dedupe on re-import. */
   source?: string;
   /** Optional short source blurb, e.g. "In Jira PEPPERMINT-2826." */

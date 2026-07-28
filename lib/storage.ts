@@ -94,6 +94,7 @@ export interface UpdateTaskInput {
   notes?: string | null;
   bucket?: Bucket;
   completed?: boolean;
+  archived?: boolean;
   position?: number;
 }
 
@@ -111,6 +112,12 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
     if (input.completed !== undefined) {
       task.completed = input.completed;
       task.completedAt = input.completed ? now : null;
+      // Un-completing always clears the archive flag — the task is going
+      // back to its column, so it can't stay hidden.
+      if (!input.completed) task.archived = undefined;
+    }
+    if (input.archived !== undefined) {
+      task.archived = input.archived || undefined;
     }
     if (bucketChanged) {
       task.bucket = input.bucket!;

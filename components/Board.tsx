@@ -126,12 +126,38 @@ export function Board({ initialTasks, dateLabel }: Props) {
   }
 
   async function updateTask(id: string, patch: Partial<Task>) {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const next: Task = { ...t, ...patch };
+        // Mirror server: un-completing clears the archive flag so the task
+        // returns to its column instead of staying hidden.
+        if (patch.completed === false) next.archived = undefined;
+        return next;
+      }),
+    );
     await fetch(`/api/tasks/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
     });
+  }
+
+  async function archiveAllCompleted() {
+    const toArchive = tasks.filter((t) => t.completed && !t.archived);
+    if (toArchive.length === 0) return;
+    setTasks((prev) =>
+      prev.map((t) => (t.completed && !t.archived ? { ...t, archived: true } : t)),
+    );
+    await Promise.all(
+      toArchive.map((t) =>
+        fetch(`/api/tasks/${t.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ archived: true }),
+        }),
+      ),
+    );
   }
 
   async function deleteTask(id: string) {
@@ -353,6 +379,19 @@ export function Board({ initialTasks, dateLabel }: Props) {
           >
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
+          {(() => {
+            const archivable = tasks.filter((t) => t.completed && !t.archived).length;
+            if (archivable === 0) return null;
+            return (
+              <button
+                onClick={archiveAllCompleted}
+                title="Hide completed tasks from the board now (they stay in Recently Completed and un-check to bring them back)"
+                className="rounded-md border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              >
+                Archive {archivable} completed
+              </button>
+            );
+          })()}
           <a
             href="/settings"
             className="text-xs text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
