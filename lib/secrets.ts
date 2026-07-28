@@ -72,7 +72,7 @@ export const PROVIDERS: ProviderMeta[] = [
     id: "lattice",
     label: "Lattice",
     emoji: "📊",
-    description: "Open todos + review deadlines. Uses your browser session cookie (no admin API key).",
+    description: "Open 1:1 action items assigned to you. Manual sync via bookmarklet (Lattice cookies are HttpOnly).",
   },
 ];
 
@@ -182,19 +182,12 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "Set automatically after clicking 'Connect Fellow'.",
   },
   {
-    key: "LATTICE_COOKIE",
-    label: "Lattice session cookie",
-    secret: true,
-    provider: "lattice",
-    help: "Auto-populated by the 'Refresh Lattice session' bookmarklet below. Contains your active Lattice login cookies.",
-  },
-  {
-    key: "LATTICE_GRAPHQL_ORIGIN",
-    label: "Lattice workspace origin",
+    key: "LATTICE_LAST_SYNCED_AT",
+    label: "Last Lattice sync",
     secret: false,
     provider: "lattice",
-    placeholder: "https://your-workspace.latticehq.com",
-    help: "Auto-populated by the bookmarklet — the workspace subdomain where your session lives.",
+    placeholder: "never (use the bookmarklet)",
+    help: "Auto-populated when the 'Sync Lattice now' bookmarklet runs successfully.",
   },
 
 ];

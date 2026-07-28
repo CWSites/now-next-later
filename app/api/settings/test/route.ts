@@ -225,80 +225,38 @@ async function testGranola(): Promise<TestResult> {
 }
 
 async function testLattice(): Promise<TestResult> {
-  const cookie = process.env.LATTICE_COOKIE;
-  const origin = process.env.LATTICE_GRAPHQL_ORIGIN ?? "https://app.latticehq.com";
-  if (!cookie) {
+  // Server can't verify Lattice — HttpOnly cookies mean sync only happens
+  // from the in-browser bookmarklet. Report the last-synced timestamp so
+  // the user knows whether their data is fresh.
+  const lastSynced = process.env.LATTICE_LAST_SYNCED_AT;
+  if (!lastSynced) {
     return {
       name: "lattice",
       configured: false,
       ok: false,
-      error: "Use the 'Refresh Lattice session' bookmarklet.",
+      error: "Not yet synced. Click 'Sync Lattice now' from a Lattice tab.",
     };
   }
-  try {
-    // Small no-op query that confirms both session validity and access to
-    // viewer.user. Uses the same headers the real ingest sends.
-    const res = await fetch(`${origin.replace(/\/+$/, "")}/graphql`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        accept: "application/json",
-        cookie,
-        origin,
-        referer: `${origin}/`,
-        "x-lattice-deployment": process.env.LATTICE_DEPLOYMENT ?? "us-prod-1",
-        "x-lattice-is-real-company": "true",
-        "x-lattice-market-segment": "smb_high",
-        "x-timezone": process.env.LATTICE_TIMEZONE ?? "America/New_York",
-      },
-      body: JSON.stringify({
-        query: "query NnlLatticeTest { viewer { user { name email entityId } } }",
-      }),
-    });
-    if (!res.ok) {
-      return {
-        name: "lattice",
-        configured: true,
-        ok: false,
-        error: `graphql HTTP ${res.status} — session likely expired; re-click the bookmarklet.`,
-      };
-    }
-    const body = (await res.json()) as {
-      data?: { viewer?: { user?: { name?: string; email?: string; entityId?: string } } };
-      errors?: Array<{ message: string }>;
-    };
-    if (body.errors?.length) {
-      return {
-        name: "lattice",
-        configured: true,
-        ok: false,
-        error: body.errors[0].message.slice(0, 160),
-      };
-    }
-    const user = body.data?.viewer?.user;
-    if (!user?.entityId) {
-      return {
-        name: "lattice",
-        configured: true,
-        ok: false,
-        error: "session accepted but viewer.user is empty (JWT likely expired)",
-      };
-    }
-    return {
-      name: "lattice",
-      configured: true,
-      ok: true,
-      identity: user.name ?? user.email ?? user.entityId,
-      detail: user.email,
-    };
-  } catch (err) {
+  const at = new Date(lastSynced);
+  if (Number.isNaN(at.getTime())) {
     return {
       name: "lattice",
       configured: true,
       ok: false,
-      error: (err as Error).message.slice(0, 160),
+      error: `Invalid LATTICE_LAST_SYNCED_AT value: ${lastSynced}`,
     };
   }
+  const ageMs = Date.now() - at.getTime();
+  const ageHours = Math.floor(ageMs / 3600_000);
+  const stale = ageHours >= 24;
+  return {
+    name: "lattice",
+    configured: true,
+    ok: !stale,
+    identity: `last synced ${at.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
+    detail: ageHours < 1 ? "just now" : `${ageHours}h ago${stale ? " — re-click bookmarklet" : ""}`,
+    error: stale ? "Sync is stale (>24h). Re-click 'Sync Lattice now' from a Lattice tab." : undefined,
+  };
 }
 
 async function testFellow(): Promise<TestResult> {
@@ -355,3 +313,5 @@ export async function POST() {
   ]);
   return NextResponse.json({ results });
 }
+// (testLattice kept as a stub — reports whatever the last bookmarklet sync
+// looked like, since there's no server-side auth to test.)

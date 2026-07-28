@@ -4,7 +4,6 @@ import { slackAdapter } from "./adapters/slack";
 import { gcalAdapter } from "./adapters/gcal";
 import { granolaAdapter } from "./adapters/granola";
 import { fellowAdapter } from "./adapters/fellow";
-import { latticeAdapter } from "./adapters/lattice";
 import { deleteByExternalId, getAllTasks, upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
 import { REPO_ROOT } from "@/lib/storage";
@@ -13,13 +12,15 @@ import { similarity } from "@/lib/action-dedup-heuristic";
 import type { Task } from "@/lib/types";
 
 // Register adapters here. New adapters just need to be added to this list.
+// Lattice is intentionally NOT here — its session cookies are HttpOnly, so
+// syncing has to happen in-browser. See components/LatticeBookmarklet.tsx
+// and /api/settings/lattice/sync.
 const ADAPTERS: Adapter[] = [
   jiraAdapter,
   slackAdapter,
   gcalAdapter,
   granolaAdapter,
   fellowAdapter,
-  latticeAdapter,
 ];
 
 export interface IngestSummary {

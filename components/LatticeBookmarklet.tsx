@@ -11,18 +11,41 @@
 // NOTE: no `//` line comments inside the template. After whitespace is
 // collapsed at render time, the bookmarklet becomes a single line and any
 // `//` comment inside the source would swallow every remaining statement.
-// Use string-template variables and this outer comment block instead.
+//
+// This bookmarklet does the whole sync from inside the Lattice tab because
+// Lattice's session cookies are HttpOnly — server-side replay isn't
+// possible. Click fetches your open action items from Lattice's own
+// GraphQL, then POSTs the extracted item list (not credentials) to the
+// app's sync endpoint.
 const BOOKMARKLET_SRC = `(async()=>{try{
   if(!location.host.endsWith('latticehq.com')){alert('Run this from a latticehq.com tab.');return;}
-  const graphqlOrigin=location.origin;
-  const cookie=document.cookie;
-  const probe=await fetch(graphqlOrigin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json; charset=utf-8','x-lattice-deployment':'us-prod-1','x-lattice-is-real-company':'true','x-lattice-market-segment':'smb_high','x-timezone':Intl.DateTimeFormat().resolvedOptions().timeZone||'America/New_York'},body:JSON.stringify({query:'query NnlProbe{viewer{user{name email entityId}}}'})});
-  const pb=await probe.json().catch(()=>({}));
-  const u=pb.data&&pb.data.viewer&&pb.data.viewer.user;
-  if(!probe.ok||!u||!u.entityId){alert('\u274C Lattice probe failed: '+probe.status+' '+(pb.errors?pb.errors[0].message:'empty viewer.user').slice(0,200)+'. Make sure you are signed in to this tab.');return;}
-  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin,probeUser:u})});
+  const origin=location.origin;
+  const query='query OneOnOnesActionItemsSidebarQuery { viewer { user { name preferredName userActiveOneOnOneRelationshipUsers { entityId name preferredName viewerUserRelationship { oneOnOneMeetings(first: 1) { edges { node { entityId actionItems { entityId completedAt dueDate body createdAt assigneeUser { viewerIsUser entityId name id } id } id } } } id } id } id } id } }';
+  const gqlRes=await fetch(origin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json; charset=utf-8','x-lattice-deployment':'us-prod-1','x-lattice-is-real-company':'true','x-lattice-market-segment':'smb_high','x-lattice-products':'{"OneOnOnesActionItemsSidebarQuery":"oneOnOnes"}','x-timezone':Intl.DateTimeFormat().resolvedOptions().timeZone||'America/New_York'},body:JSON.stringify({id:'OneOnOnesActionItemsSidebarQuery',query})});
+  const gqlBody=await gqlRes.json().catch(()=>({}));
+  if(!gqlRes.ok||gqlBody.errors){alert('\u274C Lattice GraphQL failed: '+gqlRes.status+' '+(gqlBody.errors?gqlBody.errors[0].message:'').slice(0,200)+'. Sign in to Lattice again then retry.');return;}
+  const who=gqlBody.data&&gqlBody.data.viewer&&gqlBody.data.viewer.user;
+  const rels=(who&&who.userActiveOneOnOneRelationshipUsers)||[];
+  const items=[];
+  const stripMarkup=s=>String(s||'').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();
+  for(const rel of rels){
+    const other=rel.preferredName||rel.name||'someone';
+    const edges=(rel.viewerUserRelationship&&rel.viewerUserRelationship.oneOnOneMeetings&&rel.viewerUserRelationship.oneOnOneMeetings.edges)||[];
+    for(const edge of edges){
+      const acts=(edge&&edge.node&&edge.node.actionItems)||[];
+      for(const a of acts){
+        if(a.completedAt) continue;
+        if(!a.assigneeUser||!a.assigneeUser.viewerIsUser) continue;
+        const body=stripMarkup(a.body);
+        if(!body) continue;
+        const dueStr=a.dueDate?' (due '+new Date(a.dueDate).toLocaleDateString([],{month:'short',day:'numeric'})+')':'';
+        items.push({externalId:'lattice:action:'+(a.entityId||a.id),title:body,bucket:'next',sourceRef:'From Lattice 1:1 with '+other+dueStr+'.',url:rel.entityId?origin+'/users/'+rel.entityId+'/1-1s':undefined});
+      }
+    }
+  }
+  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({items,who:who&&(who.name||who.preferredName)})});
   const data=await res.json();
-  if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+(u.name||u.email)+' at '+graphqlOrigin+'. Session lasts ~1 hour \u2014 re-click when refresh fails.');}
+  if(res.ok){const parts=[];if(data.created)parts.push(data.created+' new');if(data.updated)parts.push(data.updated+' synced');if(data.removed)parts.push(data.removed+' removed');alert('\u2705 Lattice sync complete: '+(parts.length?parts.join(', '):'no changes')+' ('+data.accepted+' open items assigned to you).');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status)));}
 }catch(e){alert('Error: '+e.message);}})();`;
 
@@ -39,14 +62,15 @@ export function LatticeBookmarklet({ appOrigin }: Props) {
   const escapedHref = `javascript:${encodeURI(src)}`
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;");
-  const bookmarkAnchor = `<a href="${escapedHref}" class="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">📎 Refresh Lattice session</a>`;
+  const bookmarkAnchor = `<a href="${escapedHref}" class="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">📎 Sync Lattice now</a>`;
 
   return (
     <div>
       <p className="text-xs text-neutral-600 dark:text-neutral-400">
-        Lattice doesn&apos;t offer non-admin API keys, so we borrow your active browser session.
-        Drag the button below to your bookmarks bar, then click it from any signed-in{" "}
-        <code>app.latticehq.com</code> tab. Sessions rotate every few weeks — re-click to refresh.
+        Lattice&apos;s session cookies are HttpOnly, so the app can&apos;t sync them for you in
+        the background. Instead: drag the button below to your bookmarks bar, then click it from a
+        signed-in Lattice tab whenever you want to pull open 1:1 action items into <strong>Next</strong>.
+        Runs entirely in your browser — no credentials leave the tab.
       </p>
       <span dangerouslySetInnerHTML={{ __html: bookmarkAnchor }} />
     </div>
