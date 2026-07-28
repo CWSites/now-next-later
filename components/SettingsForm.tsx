@@ -5,6 +5,7 @@ import type { SecretView, Provider, ProviderMeta } from "@/lib/secrets";
 import { SlackBookmarklet } from "@/components/SlackBookmarklet";
 import { LatticeBookmarklet } from "@/components/LatticeBookmarklet";
 import { TagInput } from "@/components/TagInput";
+import { HelpTip } from "@/components/HelpTip";
 
 interface TestResult {
   name: string;
@@ -179,12 +180,13 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                     : "";
                 return (
                   <div key={field.key} className="flex flex-col gap-1">
-                    <label htmlFor={field.key} className="text-sm font-medium">
+                    <label
+                      htmlFor={field.key}
+                      className="flex items-center gap-1.5 text-sm font-medium"
+                    >
                       {field.label}
+                      {field.help ? <HelpTip text={field.help} /> : null}
                     </label>
-                    {field.help ? (
-                      <p className="text-xs text-neutral-500">{field.help}</p>
-                    ) : null}
                     {field.kind === "tags" ? (
                       <TagInput
                         inputId={field.key}
@@ -228,20 +230,17 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
               })}
             </div>
 
-            {/* Provider-specific extra actions. */}
+            {/* Provider-specific extra actions. Long-form explainer text
+                lives inside HelpTip tooltips to keep the card compact. */}
             {p.id === "gcal" ? (
-              <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                  After saving your Client ID and Client Secret above, click below to grant this
-                  app read-only access to your calendar. You&apos;ll be redirected to Google, then
-                  back here.
-                </p>
+              <div className="mt-4 flex items-center gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
                 <a
                   href="/api/settings/gcal/connect"
-                  className="mt-2 inline-block rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                  className="inline-block rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
                 >
                   Connect Google Calendar
                 </a>
+                <HelpTip text="After saving your Client ID and Client Secret above, click here to grant read-only calendar access. You'll be redirected to Google, then back here." />
               </div>
             ) : null}
             {p.id === "slack" ? (
@@ -258,17 +257,14 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
               </div>
             ) : null}
             {p.id === "fellow" ? (
-              <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                  Fellow uses OAuth (with PKCE). No API key required. Click below to authorize
-                  and grant this app read-only access to your action items.
-                </p>
+              <div className="mt-4 flex items-center gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
                 <a
                   href="/api/settings/fellow/connect"
-                  className="mt-2 inline-block rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                  className="inline-block rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
                 >
                   Connect Fellow
                 </a>
+                <HelpTip text="Fellow uses OAuth 2.0 with PKCE and dynamic client registration — no API key needed. Click to authorize read-only access to your 1:1 action items." />
               </div>
             ) : null}
           </section>
