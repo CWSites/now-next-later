@@ -42,12 +42,12 @@ export function TaskCard({ task, dragging, justMerged, onToggle, onEdit, onDelet
       style={style}
       {...attributes}
       {...listeners}
-      className={`group flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm shadow-sm cursor-grab touch-none select-none transition-all duration-500 active:cursor-grabbing ${
+      className={`group flex items-start gap-2.5 rounded-lg border px-2.5 py-2 text-sm cursor-grab touch-none select-none transition-all duration-300 ease-out active:cursor-grabbing hover:-translate-y-px hover:shadow-md ${
         dragging
-          ? "ring-2 ring-blue-400 border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+          ? "ring-2 ring-blue-400 border-blue-200 bg-white shadow-xl scale-[1.02] dark:border-blue-800 dark:bg-neutral-900"
           : justMerged
-            ? "ring-2 ring-green-400 border-green-300 bg-green-50 dark:ring-green-500 dark:border-green-700 dark:bg-green-950/60"
-            : "border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+            ? "ring-2 ring-green-400 border-green-300 bg-green-50 shadow-md dark:ring-green-500 dark:border-green-700 dark:bg-green-950/60"
+            : "border-neutral-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
       }`}
     >
       <input
@@ -59,7 +59,7 @@ export function TaskCard({ task, dragging, justMerged, onToggle, onEdit, onDelet
         // Mark it read-only in that case to keep it a controlled element.
         readOnly={!onToggle}
         onPointerDown={(e) => e.stopPropagation()}
-        className="mt-1 h-4 w-4 shrink-0 cursor-pointer"
+        className="mt-[3px] h-4 w-4 shrink-0 cursor-pointer rounded accent-blue-500"
       />
       {editing ? (
         <input

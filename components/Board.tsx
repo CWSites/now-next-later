@@ -44,16 +44,19 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`-mb-px border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
+      className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition-all ${
         active
-          ? "border-neutral-800 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
-          : "border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+          ? "border-blue-500 text-neutral-900 dark:border-blue-400 dark:text-neutral-100"
+          : "border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-800 dark:hover:border-neutral-700 dark:hover:text-neutral-200"
       }`}
     >
       {children}
     </button>
   );
 }
+
+const BUTTON_STYLE =
+  "rounded-md border border-neutral-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm backdrop-blur transition-all hover:border-neutral-300 hover:bg-white hover:shadow disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-neutral-200 dark:hover:bg-neutral-900";
 
 interface Props {
   initialTasks: Task[];
@@ -394,9 +397,15 @@ export function Board({ initialTasks, dateLabel }: Props) {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Now / Next / Later</h1>
-        <div className="flex items-baseline gap-3">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+            Now <span className="text-neutral-300 dark:text-neutral-700">/</span> Next{" "}
+            <span className="text-neutral-300 dark:text-neutral-700">/</span> Later
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500">{dateLabel}</p>
+        </div>
+        <div className="flex items-center gap-2">
           {lastResult ? (
             <span className="flex items-center gap-1.5 text-xs text-neutral-500">
               {lastResult}
@@ -412,12 +421,8 @@ export function Board({ initialTasks, dateLabel }: Props) {
               ) : null}
             </span>
           ) : null}
-          <button
-            onClick={refresh}
-            disabled={refreshing}
-            className="rounded-md border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-          >
-            {refreshing ? "Refreshing…" : "Refresh"}
+          <button onClick={refresh} disabled={refreshing} className={BUTTON_STYLE}>
+            {refreshing ? "Refreshing…" : "↻ Refresh"}
           </button>
           {(() => {
             const archivable = tasks.filter((t) => t.completed && !t.archived).length;
@@ -426,19 +431,18 @@ export function Board({ initialTasks, dateLabel }: Props) {
               <button
                 onClick={archiveAllCompleted}
                 title="Hide completed tasks from the board now (they stay in Recently Completed and un-check to bring them back)"
-                className="rounded-md border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                className={BUTTON_STYLE}
               >
-                Archive {archivable} completed
+                ✓ Archive {archivable}
               </button>
             );
           })()}
           <a
             href="/settings"
-            className="text-xs text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
+            className="rounded-md px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-200/60 hover:text-neutral-800 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
           >
             settings
           </a>
-          <p className="text-sm text-neutral-500">{dateLabel}</p>
         </div>
       </header>
       {lastErrors.length > 0 && showErrors ? (

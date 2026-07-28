@@ -2,8 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { height: 100%; }
+html,
 body {
-  @apply bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100;
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  height: 100%;
+}
+
+body {
+  @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+  /* A soft, warm ambient background so the board doesn't feel like a spreadsheet. */
+  background-image:
+    radial-gradient(1200px 800px at 15% -10%, rgba(59, 130, 246, 0.06), transparent 60%),
+    radial-gradient(900px 600px at 100% 10%, rgba(147, 51, 234, 0.05), transparent 55%);
+  background-attachment: fixed;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(1200px 800px at 15% -10%, rgba(59, 130, 246, 0.08), transparent 60%),
+    radial-gradient(900px 600px at 100% 10%, rgba(147, 51, 234, 0.08), transparent 55%);
+}
+
+/* Consistent focus rings across form controls without the browser's default. */
+input:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  @apply outline-none ring-2 ring-blue-400/60 ring-offset-1 ring-offset-transparent;
+}
+
+/* Global scrollbar polish — thin, muted, still functional. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(163 163 163 / 0.5) transparent;
+}
+.dark * {
+  scrollbar-color: rgb(115 115 115 / 0.5) transparent;
 }

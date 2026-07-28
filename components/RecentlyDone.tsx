@@ -18,22 +18,23 @@ export function RecentlyDone({ today, earlierThisWeek, onUncomplete }: Props) {
 
   if (total === 0) {
     return (
-      <section className="rounded-lg border border-neutral-200 bg-white/40 p-4 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <section className="rounded-xl border border-neutral-200/80 bg-white/60 p-6 text-center text-sm text-neutral-500 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/40">
         <h2 className="text-base font-semibold text-neutral-700 dark:text-neutral-300">
-          Recently completed
+          Nothing done today
         </h2>
-        <p className="mt-1 text-xs">Nothing done today — go crush something.</p>
+        <p className="mt-1 text-xs italic">Go crush something.</p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-lg border border-neutral-200 bg-white/60 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60">
-      <header className="mb-3 flex items-baseline justify-between">
+    <section className="rounded-xl border border-neutral-200/80 bg-white/80 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/60">
+      <header className="mb-4 flex items-baseline justify-between">
         <div>
-          <h2 className="text-base font-semibold">Recently completed</h2>
-          <p className="text-xs text-neutral-500">
-            {today.length} today · {earlierThisWeek.length} earlier this week
+          <h2 className="text-base font-semibold tracking-tight">Recently completed</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            <span className="tabular-nums font-medium">{today.length}</span> today ·{" "}
+            <span className="tabular-nums font-medium">{earlierThisWeek.length}</span> earlier this week
           </p>
         </div>
         {earlierThisWeek.length > 0 ? (
