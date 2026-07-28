@@ -186,6 +186,78 @@ export async function getTombstones(): Promise<Tombstone[]> {
 }
 
 /**
+ * Merge one task into another. The `target` task keeps its id, bucket,
+ * position, and completion state — the user chose it by dropping onto it,
+ * so that's the row they want to survive. The `source` task's metadata
+ * (sourceRef, url, notes, externalId) is folded in when target's slot is
+ * empty, and the source task is then deleted.
+ *
+ * If both tasks have externalIds, target's wins as the live tracker and
+ * source's externalId is tombstoned so its adapter doesn't resurrect it
+ * on the next refresh.
+ */
+export async function mergeTasks(
+  sourceId: string,
+  targetId: string,
+): Promise<{ merged: boolean; reason?: string; task?: Task }> {
+  if (sourceId === targetId) return { merged: false, reason: "same-task" };
+  return serialize(async () => {
+    const file = await readFile();
+    const source = file.tasks.find((t) => t.id === sourceId);
+    const target = file.tasks.find((t) => t.id === targetId);
+    if (!source || !target) return { merged: false, reason: "not-found" };
+
+    const now = new Date().toISOString();
+
+    // Fold source into target. Prefer target's existing values; fill in
+    // gaps from source. sourceRef combines both when they differ so the
+    // provenance of both original tasks is preserved on the merged card.
+    if (!target.notes && source.notes) target.notes = source.notes;
+    if (!target.url && source.url) target.url = source.url;
+    if (source.sourceRef) {
+      if (!target.sourceRef) {
+        target.sourceRef = source.sourceRef;
+      } else if (
+        !target.sourceRef.toLowerCase().includes(source.sourceRef.toLowerCase()) &&
+        !source.sourceRef.toLowerCase().includes(target.sourceRef.toLowerCase())
+      ) {
+        target.sourceRef = `${target.sourceRef} • ${source.sourceRef}`;
+      }
+    }
+    if (!target.source && source.source) target.source = source.source;
+
+    // externalId handling: if target has none, adopt source's. If both do,
+    // target's stays; source's gets tombstoned so ingest won't recreate it.
+    if (!target.externalId && source.externalId) {
+      target.externalId = source.externalId;
+    } else if (
+      source.externalId &&
+      target.externalId &&
+      source.externalId !== target.externalId
+    ) {
+      addTombstone(file, {
+        externalId: source.externalId,
+        deletedAt: now,
+        title: source.title,
+        source: source.source,
+      });
+    } else if (source.externalId && !target.externalId) {
+      // Already handled above; kept for clarity.
+    }
+    target.updatedAt = now;
+
+    // Remove source.
+    file.tasks = file.tasks.filter((t) => t.id !== sourceId);
+
+    await writeFile(
+      file,
+      `merge: ${source.title.slice(0, 40)} → ${target.title.slice(0, 40)}`,
+    );
+    return { merged: true, task: target };
+  });
+}
+
+/**
  * Replace the ordered id list for a bucket. Ids not in the list keep their
  * current bucket assignment; ids present are re-bucketed and re-positioned.
  */

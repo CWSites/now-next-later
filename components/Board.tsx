@@ -55,6 +55,9 @@ export function Board({ initialTasks, dateLabel }: Props) {
   const [lastErrors, setLastErrors] = useState<Array<{ name: string; error: string }>>([]);
   const [showErrors, setShowErrors] = useState(false);
   const [view, setView] = useState<"board" | "done">("board");
+  // Tracks whether Shift is held during an active drag. When true, dropping
+  // onto another task card merges the two instead of reordering.
+  const [mergeMode, setMergeMode] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -96,6 +99,21 @@ export function Board({ initialTasks, dateLabel }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Track Shift held during an active drag so the user can start a normal
+  // drag and then press Shift mid-flight (or vice versa) to switch modes.
+  useEffect(() => {
+    if (!activeId) return;
+    function onShift(e: KeyboardEvent) {
+      if (e.key === "Shift") setMergeMode(e.type === "keydown");
+    }
+    window.addEventListener("keydown", onShift);
+    window.addEventListener("keyup", onShift);
+    return () => {
+      window.removeEventListener("keydown", onShift);
+      window.removeEventListener("keyup", onShift);
+    };
+  }, [activeId]);
+
   async function createTask(title: string, bucket: Bucket, url?: string) {
     const res = await fetch("/api/tasks", {
       method: "POST",
@@ -119,6 +137,40 @@ export function Board({ initialTasks, dateLabel }: Props) {
   async function deleteTask(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+  }
+
+  async function mergeTasks(sourceId: string, targetId: string) {
+    // Optimistic: fold source into target locally, then reconcile.
+    setTasks((prev) => {
+      const source = prev.find((t) => t.id === sourceId);
+      const target = prev.find((t) => t.id === targetId);
+      if (!source || !target) return prev;
+      const nextTarget: Task = {
+        ...target,
+        notes: target.notes ?? source.notes,
+        url: target.url ?? source.url,
+        sourceRef:
+          !source.sourceRef
+            ? target.sourceRef
+            : !target.sourceRef
+              ? source.sourceRef
+              : target.sourceRef.toLowerCase().includes(source.sourceRef.toLowerCase()) ||
+                  source.sourceRef.toLowerCase().includes(target.sourceRef.toLowerCase())
+                ? target.sourceRef
+                : `${target.sourceRef} • ${source.sourceRef}`,
+        externalId: target.externalId ?? source.externalId,
+      };
+      return prev.filter((t) => t.id !== sourceId).map((t) => (t.id === targetId ? nextTarget : t));
+    });
+    const res = await fetch("/api/tasks/merge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sourceId, targetId }),
+    });
+    if (!res.ok) {
+      // Roll back by refetching truth.
+      await refetchTasks();
+    }
   }
 
   async function refetchTasks() {
@@ -182,15 +234,35 @@ export function Board({ initialTasks, dateLabel }: Props) {
 
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
+    // Read Shift from the activator event (pointerdown that started the drag).
+    const activator = (e as unknown as { activatorEvent?: PointerEvent | KeyboardEvent })
+      .activatorEvent;
+    if (activator && "shiftKey" in activator) {
+      setMergeMode(Boolean(activator.shiftKey));
+    }
   }
 
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
+    const wasMergeMode = mergeMode;
+    setMergeMode(false);
     const { active, over } = e;
     if (!over) return;
     const activeIdStr = String(active.id);
     const overIdStr = String(over.id);
     if (activeIdStr === overIdStr) return;
+
+    // Merge intent: shift held during drag AND dropped over a task card
+    // (not a bare column). Works across columns — the target's column
+    // wins so the user sees the merged card wherever they dropped it.
+    if (wasMergeMode && !(BUCKETS as string[]).includes(overIdStr)) {
+      const target = tasks.find((t) => t.id === overIdStr);
+      const source = tasks.find((t) => t.id === activeIdStr);
+      if (target && source) {
+        void mergeTasks(activeIdStr, overIdStr);
+        return;
+      }
+    }
 
     const fromBucket = findBucket(activeIdStr);
     const toBucket = findBucket(overIdStr);
@@ -340,6 +412,19 @@ export function Board({ initialTasks, dateLabel }: Props) {
       <DragOverlay>
         {activeTask ? <TaskCard task={activeTask} dragging /> : null}
       </DragOverlay>
+      {activeId ? (
+        <div
+          className={`pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border px-3 py-1 text-xs shadow-lg backdrop-blur transition-colors ${
+            mergeMode
+              ? "border-purple-400 bg-purple-100/90 text-purple-900 dark:border-purple-500 dark:bg-purple-950/80 dark:text-purple-100"
+              : "border-neutral-300 bg-white/90 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-300"
+          }`}
+        >
+          {mergeMode
+            ? "✒️ Merge mode — drop on another task to combine them"
+            : "Hold ⇧ Shift to merge into another task instead of reordering"}
+        </div>
+      ) : null}
       {view === "done" ? (
         <RecentlyDone
           today={recentlyDone.today}
