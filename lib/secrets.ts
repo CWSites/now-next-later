@@ -32,7 +32,10 @@ export interface SecretField {
 export interface ProviderMeta {
   id: Provider;
   label: string;
+  /** Emoji fallback when the favicon fails to load (offline, etc.). */
   emoji: string;
+  /** Domain used to fetch the service's real branded favicon. */
+  domain: string;
   description: string;
 }
 
@@ -42,37 +45,43 @@ export const PROVIDERS: ProviderMeta[] = [
     id: "jira",
     label: "Jira",
     emoji: "🎯",
+    domain: "jira.atlassian.com",
     description: "Pulls in-flight tickets assigned to you.",
   },
   {
     id: "slack",
     label: "Slack",
     emoji: "💬",
+    domain: "slack.com",
     description: "Surfaces DMs with unread messages as Now tasks.",
   },
   {
     id: "gcal",
     label: "Google Calendar",
     emoji: "🗓️",
-    description: "Today's meetings → Now; rest of the week → Next.",
+    domain: "calendar.google.com",
+    description: "Today's meetings pulled into Now, refreshed on demand.",
   },
   {
     id: "granola",
     label: "Granola",
     emoji: "📝",
+    domain: "granola.ai",
     description: "Recent meeting notes and open action items.",
   },
   {
     id: "fellow",
     label: "Fellow",
     emoji: "🤝",
+    domain: "fellow.app",
     description: "Open action items assigned to you in Fellow.",
   },
   {
     id: "lattice",
     label: "Lattice",
     emoji: "📊",
-    description: "Open 1:1 action items assigned to you. Manual sync via bookmarklet (Lattice cookies are HttpOnly).",
+    domain: "lattice.com",
+    description: "Open 1:1 action items. Manual sync via bookmarklet.",
   },
 ];
 
