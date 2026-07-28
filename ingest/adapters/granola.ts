@@ -1,21 +1,37 @@
 import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
-import { extractActionItems, isMine } from "@/lib/granola-extract";
+import { extractActionItems } from "@/lib/granola-extract";
 import { dedupHeuristically } from "@/lib/action-dedup-heuristic";
 
 /**
  * Granola adapter.
  *
- * Rather than surfacing "review notes" placeholders, this adapter fetches
- * each recent note's full body and extracts action items directly. The
- * heavy lifting lives in lib/granola-extract.ts; here we handle:
- *   - listing recent notes (skipping ones whose title matches the skip list)
- *   - fetching each note's full markdown
- *   - filtering extracted actions to ones assigned to me / unassigned
- *   - upserting stable externalIds so re-runs don't duplicate
- *   - retiring old `granola:note:*` fallback tasks now that we're extracting
+ * We fetch each recent note's full body, extract action items from the
+ * markdown, then attribute them to the current user only when we can do
+ * so unambiguously. Key correctness rules:
+ *
+ *   1. Determine "me" once, up front — from GRANOLA_ME_EMAIL if set, else
+ *      the most-frequent owner email across the batch. This is the user
+ *      the API key belongs to.
+ *   2. Only process notes where "me" is either the owner or in the
+ *      attendee list. Notes shared with the user but where they didn't
+ *      attend (e.g. someone else's meeting notes shared for visibility)
+ *      never yield tasks — any "(Alex)" tag in them refers to a
+ *      different Alex who was actually in the room.
+ *   3. Per-note ownership disambiguation: if multiple attendees share
+ *      a first name (Alex + Alexander, Chris + Christine), items tagged
+ *      with just that first name require a full-name or email match to
+ *      count as mine. Otherwise a lone first-name tag is fine.
+ *
+ * This mirrors how a human triaging Granola notes would decide: "was I
+ * actually in that meeting, and if so, is this tag unambiguously me?"
  */
 
 const API = "https://public-api.granola.ai/v1";
+
+interface GranolaAttendee {
+  name?: string;
+  email?: string;
+}
 
 interface GranolaNoteMeta {
   id: string;
@@ -30,6 +46,7 @@ interface GranolaNoteFull extends GranolaNoteMeta {
   summary_markdown?: string;
   summary_text?: string;
   calendar_event?: { event_title?: string; scheduled_start_time?: string };
+  attendees?: GranolaAttendee[];
 }
 
 export const granolaAdapter: Adapter = {
@@ -49,8 +66,9 @@ export const granolaAdapter: Adapter = {
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
+    const configuredEmail = (process.env.GRANOLA_ME_EMAIL ?? "").trim().toLowerCase();
 
-    // 1) list recent notes (metadata only, no body)
+    // 1) list recent notes
     const listRes = await fetch(`${API}/notes?limit=50`, {
       headers: { authorization: `Bearer ${token}`, accept: "application/json" },
     });
@@ -65,9 +83,6 @@ export const granolaAdapter: Adapter = {
     };
     const notes = listData.notes ?? listData.data ?? [];
 
-    // Restrict to the recent window so we don't hit N-per-note calls on a
-    // whole archive. Granola's list returns newest first; 14 days is enough
-    // to catch anything still active.
     const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
     const recent = notes.filter((n) => {
       const t = new Date(n.updated_at ?? n.created_at ?? 0).getTime();
@@ -75,13 +90,13 @@ export const granolaAdapter: Adapter = {
       return t >= cutoff;
     });
 
-    // Identity for "is this action item mine?" comparisons. The first note's
-    // owner is always the authenticated user (Granola's /notes only returns
-    // notes you own or are a member of, and owner reflects the note holder).
-    const meOwner = recent.find((n) => n.owner?.name)?.owner;
-    const myNames = [meOwner?.name, meOwner?.email?.split("@")[0]]
-      .filter((s): s is string => Boolean(s))
-      .flatMap((s) => [s, s.split(/\s+/)[0]]);
+    // 2) determine "me": explicit config wins, else most-frequent owner.
+    const meEmail = configuredEmail || guessMostFrequentOwnerEmail(recent);
+    if (!meEmail) {
+      // Nothing to attribute to — bail with no items rather than misassign.
+      return { items: [], removedExternalIds: [] };
+    }
+    const meFirstName = firstNameFromEmail(meEmail);
 
     const items: IngestItem[] = [];
     const removedExternalIds: string[] = [];
@@ -90,12 +105,11 @@ export const granolaAdapter: Adapter = {
       const title = meta.title ?? "(untitled note)";
       const lowerTitle = title.toLowerCase();
       if (skipTitles.some((s) => lowerTitle.includes(s))) {
-        // Also retire the old-shape fallback task if we had one for this note.
         removedExternalIds.push(`granola:note:${meta.id}`);
         continue;
       }
 
-      // 2) fetch full note for the markdown body
+      // Fetch full note (need attendees + summary_markdown).
       let full: GranolaNoteFull;
       try {
         const res = await fetch(`${API}/notes/${meta.id}`, {
@@ -107,14 +121,29 @@ export const granolaAdapter: Adapter = {
         continue;
       }
 
-      const md = full.summary_markdown ?? full.summary_text ?? "";
-      const actions = md ? extractActionItems(md) : [];
-      const mine = actions.filter((a) => isMine(a, myNames));
-
-      // Always retire the old "Review notes:" fallback for this note — we're
-      // replacing it with either extracted actions or nothing at all.
+      // Retire the old fallback task regardless of what we decide below.
       removedExternalIds.push(`granola:note:${meta.id}`);
 
+      // Correctness gate: I must have actually been in this meeting.
+      const attendees = full.attendees ?? [];
+      const isOwner = (full.owner?.email ?? "").toLowerCase() === meEmail;
+      const isAttendee = attendees.some((a) => (a.email ?? "").toLowerCase() === meEmail);
+      if (!isOwner && !isAttendee) continue;
+
+      const md = full.summary_markdown ?? full.summary_text ?? "";
+      if (!md) continue;
+      const actions = extractActionItems(md);
+
+      // Ambiguity: another attendee shares my first name (Alex + Alexander,
+      // Chris + Christine). If so, first-name-only tags aren't enough.
+      const firstNameCollision = attendees.some((a) => {
+        const other = firstNameFromEmail(a.email ?? "") || firstNameFromName(a.name ?? "");
+        if (!other) return false;
+        if ((a.email ?? "").toLowerCase() === meEmail) return false;
+        return normalizeFirstName(other) === normalizeFirstName(meFirstName);
+      });
+
+      const mine = actions.filter((a) => attributedToMe(a.owner, meEmail, meFirstName, firstNameCollision));
       if (mine.length === 0) continue;
 
       const noteTitle = full.title ?? title;
@@ -140,14 +169,7 @@ export const granolaAdapter: Adapter = {
       }
     }
 
-    // Cross-note dedup: free, self-contained heuristic (alias expansion,
-    // action-verb clustering, proper-noun boost, Jaccard on residual
-    // tokens). Catches common rewrites like i18n ↔ internationalization
-    // and "talk to Ron" ↔ "reach out to Ron" without any API keys or
-    // network calls. See lib/action-dedup-heuristic.ts.
     const deduped = dedupHeuristically(items);
-    // If dedup merged items, retire the individual externalIds so we don't
-    // leave the old un-merged tasks sitting around from a previous ingest.
     if (deduped.length < items.length) {
       const survivingIds = new Set(deduped.map((i) => i.externalId));
       for (const orig of items) {
@@ -158,3 +180,69 @@ export const granolaAdapter: Adapter = {
     return { items: deduped, removedExternalIds };
   },
 };
+
+// ------------------------ helpers ------------------------
+
+function guessMostFrequentOwnerEmail(notes: GranolaNoteMeta[]): string {
+  const counts = new Map<string, number>();
+  for (const n of notes) {
+    const email = n.owner?.email?.toLowerCase();
+    if (email) counts.set(email, (counts.get(email) ?? 0) + 1);
+  }
+  let best: { email: string; n: number } | null = null;
+  for (const [email, n] of counts) {
+    if (!best || n > best.n) best = { email, n };
+  }
+  return best?.email ?? "";
+}
+
+function firstNameFromEmail(email: string): string {
+  if (!email) return "";
+  const local = email.split("@")[0];
+  return local.split(/[._-]/)[0] ?? "";
+}
+
+function firstNameFromName(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? "";
+}
+
+function normalizeFirstName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+/**
+ * Decide whether an action item's owner tag refers to me.
+ *
+ *   - No tag                                 → treat as mine (unassigned).
+ *   - Full name / email exact match          → mine.
+ *   - First-name match, no collision in room → mine.
+ *   - First-name match, another same-name    → NOT mine (ambiguous, skip
+ *                                              rather than misassign).
+ *   - Different name                         → not mine.
+ */
+function attributedToMe(
+  ownerTag: string | undefined,
+  myEmail: string,
+  myFirstName: string,
+  collision: boolean,
+): boolean {
+  if (!ownerTag) return true;
+  const tag = ownerTag.trim().toLowerCase();
+  if (!tag) return true;
+  if (tag === myEmail) return true;
+  const myFirst = normalizeFirstName(myFirstName);
+  const tagFirst = normalizeFirstName(firstNameFromName(ownerTag));
+  if (tagFirst !== myFirst) return false;
+  // First names match. If there's no ambiguity in the room, accept.
+  if (!collision) return true;
+  // Ambiguous — require the tag to include full-name/email disambiguation.
+  const nameParts = ownerTag.trim().split(/\s+/);
+  if (nameParts.length < 2) return false; // just "Alex" is ambiguous
+  // With a last name, require it to look like ours. We don't know user's
+  // last name (only email), so approximate: last-name token should appear
+  // as a segment of the email local-part (e.g. jane.doe@example.com
+  // matches "Jane Doe").
+  const emailLocal = myEmail.split("@")[0].toLowerCase();
+  const lastToken = nameParts[nameParts.length - 1].toLowerCase().replace(/[^a-z]/g, "");
+  return emailLocal.includes(lastToken);
+}

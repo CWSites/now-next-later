@@ -145,6 +145,14 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "Granola desktop app → Settings → API keys → Create personal key. See docs.granola.ai/help-center/sharing/integrations/granola-api.",
   },
   {
+    key: "GRANOLA_ME_EMAIL",
+    label: "Your Granola email",
+    secret: false,
+    provider: "granola",
+    placeholder: "you@example.com",
+    help: "Used to correctly attribute action items when meetings have multiple 'Alex's / 'Chris's. If unset, we guess from your most-frequent-owner notes.",
+  },
+  {
     key: "GRANOLA_SKIP_TITLES",
     label: "Skip notes matching",
     secret: false,
