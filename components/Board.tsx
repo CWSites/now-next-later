@@ -11,7 +11,20 @@ import {
   useSensors,
   closestCorners,
 } from "@dnd-kit/core";
-import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  type SortingStrategy,
+} from "@dnd-kit/sortable";
+
+/**
+ * When Shift is held (merge mode), we don't want the other cards to shift
+ * around to make room for the dragged item — the user is trying to aim at
+ * a specific target, not reorder. Returning null from the strategy means
+ * "don't apply any transform" so the list stays still.
+ */
+const noShiftStrategy: SortingStrategy = () => null;
 import { BUCKETS, Bucket, Task } from "@/lib/types";
 import { Column } from "./Column";
 import { TaskCard } from "./TaskCard";
@@ -463,7 +476,7 @@ export function Board({ initialTasks, dateLabel }: Props) {
             key={bucket}
             id={bucket}
             items={grouped[bucket].map((t) => t.id)}
-            strategy={verticalListSortingStrategy}
+            strategy={mergeMode ? noShiftStrategy : verticalListSortingStrategy}
           >
             <Column
               bucket={bucket}
