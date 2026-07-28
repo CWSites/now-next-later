@@ -44,7 +44,7 @@ export function SlackBookmarklet({ appOrigin, workspaceMatch }: Props) {
   const escapedHref = `javascript:${encodeURI(src)}`
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;");
-  const bookmarkAnchor = `<a href="${escapedHref}" class="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">📎 Refresh Slack tokens</a>`;
+  const bookmarkAnchor = `<a href="${escapedHref}" class="mt-2 inline-block cursor-grab select-none rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">Refresh Slack tokens</a>`;
 
   return (
     <div className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
