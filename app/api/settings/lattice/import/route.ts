@@ -86,18 +86,16 @@ export async function POST(req: Request) {
 
   const check = await verifyLatticeCookie(cookie, graphqlOrigin);
   if (!check.ok) {
-    const hint =
-      body.probeUser?.id
-        ? `Your browser CAN auth (as ${body.probeUser.name ?? body.probeUser.email ?? body.probeUser.id}) but the server cannot. That means Lattice's session cookies are HttpOnly and JS on the page can't read them — a security setting on Lattice's side we can't bypass. See the alternative below.`
-        : "Neither the browser nor the server could authenticate. Are you actually signed in?";
-    // Storage sweep never turned up anything JWT-looking?
-    const storageKeys = Object.keys(body.storage ?? {});
+    const probe = body.probeUser;
+    const probeId = probe?.entityId;
+    const hint = probeId
+      ? `Your browser CAN auth (as ${probe?.name ?? probe?.email ?? probeId}) but the server cannot. That usually means the session cookies Lattice actually uses are HttpOnly — JS on the page can't read them, so we can't relay them to the server.`
+      : "Neither the browser nor the server could authenticate. Sign in and retry.";
     return NextResponse.json(
       {
         error: check.error ?? "Lattice rejected the session cookie",
         hint,
         cookieVisibleToJs: cookie.length,
-        interestingStorageKeys: storageKeys,
       },
       { status: 400, headers },
     );
