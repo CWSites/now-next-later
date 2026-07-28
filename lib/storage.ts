@@ -248,4 +248,31 @@ export async function upsertByExternalId(input: CreateTaskInput & { externalId: 
   });
 }
 
+/**
+ * Delete a task by externalId. Used by ingest adapters to purge previously-
+ * synced items the source no longer considers relevant (e.g. calendar
+ * events matching the user's skip list, closed Jira tickets in future). We
+ * refuse to delete tasks that have been checked off so we never lose a
+ * completed-task history entry, and we skip tasks the user manually edited
+ * out of the ingested source (source doesn't match) to be conservative.
+ */
+export async function deleteByExternalId(
+  externalId: string,
+  opts: { source?: string } = {},
+): Promise<{ deleted: boolean; reason?: string }> {
+  return serialize(async () => {
+    const file = await readFile();
+    const idx = file.tasks.findIndex((t) => t.externalId === externalId);
+    if (idx === -1) return { deleted: false, reason: "not-found" };
+    const t = file.tasks[idx];
+    if (t.completed) return { deleted: false, reason: "completed" };
+    if (opts.source && t.source && t.source !== opts.source) {
+      return { deleted: false, reason: "source-mismatch" };
+    }
+    file.tasks.splice(idx, 1);
+    await writeFile(file, `remove: ${t.title.slice(0, 60)}`);
+    return { deleted: true };
+  });
+}
+
 export { DATA_FILE, REPO_ROOT };

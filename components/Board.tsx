@@ -134,11 +134,13 @@ export function Board({ initialTasks, dateLabel }: Props) {
       const summary = await res.json();
       const created = summary.totalCreated ?? 0;
       const updated = summary.totalUpdated ?? 0;
+      const removed = summary.totalRemoved ?? 0;
       const errored = summary.adapters?.filter((a: { error?: string }) => a.error) ?? [];
       const skipped = summary.adapters?.filter((a: { ran: boolean }) => !a.ran) ?? [];
       const parts: string[] = [];
       if (created) parts.push(`${created} new`);
       if (updated) parts.push(`${updated} synced`);
+      if (removed) parts.push(`${removed} removed`);
       if (errored.length) parts.push(`${errored.length} errored`);
       if (skipped.length) parts.push(`${skipped.length} skipped`);
       setLastResult(parts.length ? parts.join(" · ") : "no changes");

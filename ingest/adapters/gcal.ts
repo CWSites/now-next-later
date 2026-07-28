@@ -1,4 +1,4 @@
-import type { Adapter, IngestItem } from "./base";
+import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
 import type { Bucket } from "@/lib/types";
 import { refreshAccessToken } from "@/lib/gcal-auth";
 
@@ -46,7 +46,7 @@ export const gcalAdapter: Adapter = {
     return "Set Google credentials in Settings and click 'Connect Google Calendar'.";
   },
 
-  async ingest(): Promise<IngestItem[]> {
+  async ingest(): Promise<AdapterIngestResult> {
     const clientId = process.env.GOOGLE_CLIENT_ID!;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
     const refreshToken = process.env.GOOGLE_REFRESH_TOKEN!;
@@ -97,18 +97,38 @@ export const gcalAdapter: Adapter = {
       .filter((s) => s.length > 0);
 
     const items: IngestItem[] = [];
+    const removedExternalIds: string[] = [];
+
+    // Helper for adding a would-be-created externalId to the removal list.
+    // Runner will delete any existing task that matches — this makes filter
+    // changes retroactive for events still inside the fetch window.
+    const skipAndRemove = (id: string) => removedExternalIds.push(`gcal:${id}`);
+
     for (const ev of events) {
-      if (ev.status === "cancelled") continue;
+      const evId = ev.id;
+      if (ev.status === "cancelled") {
+        if (evId) skipAndRemove(evId);
+        continue;
+      }
       // Skip all-day events (they only have `date`, not `dateTime`).
       const startIso = ev.start?.dateTime;
-      if (!startIso) continue;
+      if (!startIso) {
+        if (evId) skipAndRemove(evId);
+        continue;
+      }
 
       // Skip events the user has declined.
       const self = ev.attendees?.find((a) => a.self);
-      if (self?.responseStatus === "declined") continue;
+      if (self?.responseStatus === "declined") {
+        if (evId) skipAndRemove(evId);
+        continue;
+      }
 
       // Skip working-location / focus-time system events unless they have a real title.
-      if (ev.eventType && ["workingLocation", "outOfOffice"].includes(ev.eventType)) continue;
+      if (ev.eventType && ["workingLocation", "outOfOffice"].includes(ev.eventType)) {
+        if (evId) skipAndRemove(evId);
+        continue;
+      }
 
       const startsAt = new Date(startIso);
       const bucket = bucketFor(startsAt);
@@ -118,7 +138,10 @@ export const gcalAdapter: Adapter = {
       // Filter recurring / low-signal meetings the user has opted out of.
       if (skipTitles.length > 0) {
         const lower = title.toLowerCase();
-        if (skipTitles.some((s) => lower.includes(s))) continue;
+        if (skipTitles.some((s) => lower.includes(s))) {
+          if (evId) skipAndRemove(evId);
+          continue;
+        }
       }
       const time = startsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const day = startsAt.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
@@ -137,6 +160,6 @@ export const gcalAdapter: Adapter = {
       });
     }
 
-    return items;
+    return { items, removedExternalIds };
   },
 };
