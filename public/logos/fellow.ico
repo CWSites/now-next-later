@@ -1,0 +1,111 @@
+<!doctype html>
+<html
+	prefix=""
+	data-theme=""
+	data-ux-simplification="disabled"
+	data-ux-simplification-app-structure="disabled">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, minimum-scale=1.0, shrink-to-fit=no">
+		<meta name="description" content="Fellow is the best tool for meetings. From 1-on-1s to team meetings, build collaborative meeting agendas, assign action items &amp; record decisions.">
+
+		
+		
+		<meta id="ios-app-store-link" name="apple-itunes-app" content="app-id=1477264742, app-argument=/favicon.ico">
+		
+
+		<link rel="apple-touch-icon" sizes="180x180" href="https://cdn.fellow.app/static/images/favicon/apple-touch-icon.a31b6fe0400f.png?v=Omr4b3q9Op">
+
+		
+		<link rel="alternate icon" sizes="16x16" type="image/x-icon" href="https://cdn.fellow.app/static/images/favicon/favicon.b2e8f4132a62.ico?v=Omr4b3q9Op">
+		<link rel="alternate icon" sizes="32x32 48x48" type="image/x-icon" href="https://cdn.fellow.app/static/images/favicon/favicon.b2e8f4132a62.ico?v=Omr4b3q9Op">
+		<link rel="icon" type="image/svg+xml" sizes="any 16x16 32x32 48x48" href="https://cdn.fellow.app/static/images/favicon/favicon.6ab6c0047b33.svg?v=Omr4b3q9Op">
+
+		<link rel="manifest" href="https://cdn.fellow.app/static/images/favicon/site.60a70aba5eec.webmanifest?v=Omr4b3q9Op">
+		
+	<link rel="stylesheet" href="https://cdn.fellow.app/static/css/error-page.4c2e15c3b62f.css">
+
+		<meta name="msapplication-TileColor" content="#142c4f">
+		<meta name="msapplication-config" content="https://cdn.fellow.app/static/images/favicon/browserconfig.2fb7cc6ab082.xml?v=Omr4b3q9Op">
+		<meta name="theme-color" content="#2b353a">
+
+		
+
+		
+			<meta name="slack-app-id" content="A4QSHMZE0">
+		
+
+		<meta name="robots" content="noindex, nofollow">
+
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css?family=Lato:300,400,500,600,700,900,400italic,700italic,900italic" rel="stylesheet" type="text/css">
+		<link href="https://fonts.googleapis.com/css?family=Roboto+Mono:300,400,600,700,900,400italic,700italic,900italic" rel="stylesheet" type="text/css">
+		<link href="https://fonts.googleapis.com/css?family=Montserrat:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet" type="text/css">
+		<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+		<link href="https://cdn.fellow.app/static/css/poppins.3ad1476e5404.css" rel="stylesheet" type="text/css">
+		<link href="https://cdn.fellow.app/static/css/sharp-grotesk.777b12257dc4.css" rel="stylesheet" type="text/css">
+		<link href="https://cdn.fellow.app/static/css/open-sauce-sans.8db9894a2525.css" rel="stylesheet" type="text/css">
+
+		<!-- Needs to come before any CSS file that uses layers -->
+		<link href="https://cdn.fellow.app/static/css/layers.991adbc47981.css" rel="stylesheet" type="text/css">
+
+		
+
+		<!-- TODO: Once we're done moving over to the new UX, this whole if/else block can be removed -->
+		
+			<link href="https://cdn.fellow.app/static/web/semantic-c1d1d9b7.css" rel="stylesheet" type="text/css" disabled>
+			<link href="https://cdn.fellow.app/static/web/text-variables-e6f3be25.css" rel="stylesheet" type="text/css" disabled>
+			<link href="https://cdn.fellow.app/static/web/base-e0fb5482.css" rel="stylesheet" type="text/css" disabled>
+
+			<link href="https://cdn.fellow.app/static/web/legacy-semantic-802e907c.css" rel="stylesheet" type="text/css" >
+			<!-- TODO: The legacy text styles will be necessary until we've completely removed all references to variables and fonts in it. -->
+			<link href="https://cdn.fellow.app/static/web/legacy-text-styles-7fe63f09.css" rel="stylesheet" type="text/css">
+			<link href="https://cdn.fellow.app/static/web/text-variables-compat-cf02ad0b.css" rel="stylesheet" type="text/css" >
+		
+
+		<title>
+	404 Not Found
+</title>
+
+	</head>
+	<body class="">
+		<noscript>
+			<div class='status-message'>
+				<img alt='fellow-logo' class="fellow-logo" src="https://cdn.fellow.app/static/images/logos/fellow-icon-gray.7c4d6b9fc725.svg">
+				<div class='status-message-container'>
+					<h1>JavaScript Required</h1>
+					<h2>
+						Fellow does not work properly without JavaScript enabled.
+					</h2>
+				</div>
+			</div>
+			<link rel="stylesheet" href="https://cdn.fellow.app/static/css/error-page.4c2e15c3b62f.css">
+		</noscript>
+
+		
+	<div class='electron-drag-header'></div>
+	<div class='status-message'>
+		<img alt='404' class="fellow-logo" src="https://cdn.fellow.app/static/images/logos/fellow-icon-outline.472e6d03b160.svg">
+		<div class='status-message-container'>
+			<h1>There's Nothing Here!</h1>
+			<h2>
+				Try heading back to the
+				<a href="#" id="previous-page-link">previous page</a>.
+			</h2>
+			<h3>
+				If you think something should be here, please
+				<a href="mailto:help@fellow.co">contact us</a>.
+			</h3>
+		</div>
+		<script nonce="9KAGzt40p+rClFbuAvFwqA==">
+			document.getElementById('previous-page-link').addEventListener('click', function(e) {
+				e.preventDefault();
+				window.history.back();
+			});
+		</script>
+	</div>
+
+
+		
+	</body>
+</html>
