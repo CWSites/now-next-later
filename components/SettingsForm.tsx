@@ -6,6 +6,7 @@ import { SlackBookmarklet } from "@/components/SlackBookmarklet";
 import { LatticeBookmarklet } from "@/components/LatticeBookmarklet";
 import { TagInput } from "@/components/TagInput";
 import { HelpTip } from "@/components/HelpTip";
+import { ProviderIcon } from "@/components/ProviderIcon";
 
 interface TestResult {
   name: string;
@@ -136,15 +137,19 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
             key={p.id}
             className="flex flex-col rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
           >
-            <header className="mb-3 flex items-baseline justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold">
-                  <span aria-hidden className="mr-1.5">
-                    {p.emoji}
-                  </span>
-                  {p.label}
-                </h2>
-                <p className="mt-0.5 text-xs text-neutral-500">{p.description}</p>
+            <header className="mb-3 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <ProviderIcon
+                  id={p.id}
+                  emoji={p.emoji}
+                  label={p.label}
+                  size={28}
+                  className="mt-0.5"
+                />
+                <div>
+                  <h2 className="text-base font-semibold leading-tight">{p.label}</h2>
+                  <p className="mt-0.5 text-xs text-neutral-500">{p.description}</p>
+                </div>
               </div>
               {result ? (
                 <span
