@@ -14,6 +14,8 @@ import "server-only";
 
 export type Provider = "jira" | "slack" | "gcal" | "granola" | "fellow" | "lattice";
 
+export type FieldKind = "text" | "tags";
+
 export interface SecretField {
   key: string;
   label: string;
@@ -21,6 +23,8 @@ export interface SecretField {
   secret: boolean;
   /** Which provider group this field belongs to. Drives grouping in the settings UI. */
   provider: Provider;
+  /** Renders a chip editor for comma-separated lists instead of a text input. */
+  kind?: FieldKind;
   placeholder?: string;
   help?: string;
 }
@@ -134,8 +138,9 @@ export const SECRET_SCHEMA: SecretField[] = [
     label: "Skip events matching",
     secret: false,
     provider: "gcal",
-    placeholder: "standup, tea time, office hours",
-    help: "Comma-separated substrings (case-insensitive). Events whose title contains any of these won't be ingested as tasks.",
+    kind: "tags",
+    placeholder: "Type a phrase and press Enter (e.g. standup)",
+    help: "Case-insensitive substring match on event titles. Events matching any tag won't be ingested.",
   },
   {
     key: "GRANOLA_API_KEY",
@@ -157,8 +162,9 @@ export const SECRET_SCHEMA: SecretField[] = [
     label: "Skip notes matching",
     secret: false,
     provider: "granola",
-    placeholder: "stand-up, tea time, sync",
-    help: "Comma-separated substrings (case-insensitive). Notes whose title contains any won't be scanned for action items.",
+    kind: "tags",
+    placeholder: "Type a phrase and press Enter (e.g. stand-up)",
+    help: "Case-insensitive substring match on note titles. Notes matching any tag won't be scanned for action items.",
   },
 
   {
@@ -259,6 +265,7 @@ export interface SecretView {
   label: string;
   secret: boolean;
   provider: Provider;
+  kind: FieldKind;
   placeholder?: string;
   help?: string;
   isSet: boolean;
@@ -282,6 +289,7 @@ export async function getSecretsView(): Promise<SecretView[]> {
       label: field.label,
       secret: field.secret,
       provider: field.provider,
+      kind: field.kind ?? "text",
       placeholder: field.placeholder,
       help: field.help,
       isSet,

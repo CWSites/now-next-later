@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { SecretView, Provider, ProviderMeta } from "@/lib/secrets";
 import { SlackBookmarklet } from "@/components/SlackBookmarklet";
 import { LatticeBookmarklet } from "@/components/LatticeBookmarklet";
+import { TagInput } from "@/components/TagInput";
 
 interface TestResult {
   name: string;
@@ -184,32 +185,41 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                     {field.help ? (
                       <p className="text-xs text-neutral-500">{field.help}</p>
                     ) : null}
-                    <div className="flex items-center gap-2">
-                      <input
-                        id={field.key}
-                        type={field.secret ? "password" : "text"}
-                        autoComplete="off"
-                        spellCheck={false}
-                        placeholder={
-                          field.isSet && field.secret
-                            ? `saved (${field.preview}) — paste to replace`
-                            : (field.placeholder ?? "")
-                        }
+                    {field.kind === "tags" ? (
+                      <TagInput
+                        inputId={field.key}
                         value={displayValue}
-                        onChange={(e) => setDraft(field.key, e.target.value)}
-                        className="flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-950"
+                        onChange={(v) => setDraft(field.key, v)}
+                        placeholder={field.placeholder}
                       />
-                      {field.isSet ? (
-                        <button
-                          type="button"
-                          onClick={() => clear(field.key)}
-                          className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                          title="Clear this value on save"
-                        >
-                          clear
-                        </button>
-                      ) : null}
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          id={field.key}
+                          type={field.secret ? "password" : "text"}
+                          autoComplete="off"
+                          spellCheck={false}
+                          placeholder={
+                            field.isSet && field.secret
+                              ? `saved (${field.preview}) — paste to replace`
+                              : (field.placeholder ?? "")
+                          }
+                          value={displayValue}
+                          onChange={(e) => setDraft(field.key, e.target.value)}
+                          className="flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-neutral-700 dark:bg-neutral-950"
+                        />
+                        {field.isSet ? (
+                          <button
+                            type="button"
+                            onClick={() => clear(field.key)}
+                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                            title="Clear this value on save"
+                          >
+                            clear
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
                     {touched && draft === "" && field.isSet ? (
                       <p className="text-xs text-red-500">Will be removed on save.</p>
                     ) : null}
