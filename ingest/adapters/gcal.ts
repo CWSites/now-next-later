@@ -1,6 +1,7 @@
 import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
 import type { Bucket } from "@/lib/types";
 import { refreshAccessToken } from "@/lib/gcal-auth";
+import { getAllTasks } from "@/lib/storage";
 
 /**
  * Google Calendar adapter.
@@ -98,6 +99,18 @@ export const gcalAdapter: Adapter = {
 
     const items: IngestItem[] = [];
     const removedExternalIds: string[] = [];
+
+    // Sweep: purge any pre-existing gcal:* task that isn't in Now. Since we
+    // only ingest today's events into Now, anything gcal:* in Next or Later
+    // is a leftover from an older adapter version and should be cleaned up.
+    // Runner's deleteByExternalId honors the completed-task guard, so we
+    // won't blow away meetings the user has already checked off.
+    const existing = await getAllTasks();
+    for (const t of existing) {
+      const eid = t.externalId ?? "";
+      if (!eid.startsWith("gcal:")) continue;
+      if (t.bucket !== "now") removedExternalIds.push(eid);
+    }
 
     // Helper for adding a would-be-created externalId to the removal list.
     // Runner will delete any existing task that matches — this makes filter
