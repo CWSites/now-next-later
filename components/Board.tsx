@@ -437,11 +437,8 @@ export function Board({ initialTasks, dateLabel }: Props) {
               </button>
             );
           })()}
-          <a
-            href="/settings"
-            className="rounded-md px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-200/60 hover:text-neutral-800 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
-          >
-            settings
+          <a href="/settings" className={BUTTON_STYLE}>
+            ⚙ Settings
           </a>
         </div>
       </header>
