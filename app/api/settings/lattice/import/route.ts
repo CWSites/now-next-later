@@ -33,52 +33,34 @@ export async function OPTIONS(req: Request) {
 async function verifyLatticeCookie(
   cookie: string,
   graphqlOrigin: string,
-  meField: string,
 ): Promise<{ ok: boolean; user?: string; error?: string }> {
   const url = `${graphqlOrigin.replace(/\/+$/, "")}/graphql`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      "content-type": "application/json",
+      "content-type": "application/json; charset=utf-8",
       accept: "application/json",
       cookie,
       origin: graphqlOrigin,
       referer: `${graphqlOrigin}/`,
+      "x-lattice-deployment": "us-prod-1",
+      "x-lattice-is-real-company": "true",
+      "x-lattice-market-segment": "smb_high",
+      "x-timezone": "America/New_York",
     },
     body: JSON.stringify({
-      query: `query WhoAmI { ${meField} { id name email } }`,
+      query: `query NnlProbe { viewer { user { name email entityId } } }`,
     }),
   });
   if (!res.ok) return { ok: false, error: `${url} → HTTP ${res.status}` };
   const data = (await res.json()) as {
-    data?: Record<string, { id?: string; name?: string; email?: string } | null>;
+    data?: { viewer?: { user?: { name?: string; email?: string; entityId?: string } } };
     errors?: Array<{ message: string }>;
   };
-  // Some User types may not expose name/email at the top level; retry with
-  // just id to at least confirm auth.
-  if (data.errors?.length) {
-    const narrow = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-        cookie,
-        origin: graphqlOrigin,
-        referer: `${graphqlOrigin}/`,
-      },
-      body: JSON.stringify({ query: `query WhoAmI { ${meField} { id } }` }),
-    });
-    const nBody = (await narrow.json()) as {
-      data?: Record<string, { id?: string } | null>;
-      errors?: Array<{ message: string }>;
-    };
-    if (nBody.errors?.length) return { ok: false, error: nBody.errors[0].message.slice(0, 120) };
-    if (nBody.data?.[meField]?.id) return { ok: true, user: nBody.data[meField]!.id };
-    return { ok: false, error: `${meField} returned no id` };
-  }
-  const me = data.data?.[meField];
-  if (!me?.id) return { ok: false, error: `${meField} returned no id` };
-  return { ok: true, user: me.name ?? me.email ?? me.id };
+  if (data.errors?.length) return { ok: false, error: data.errors[0].message.slice(0, 160) };
+  const user = data.data?.viewer?.user;
+  if (!user?.entityId) return { ok: false, error: "viewer.user empty — JWT may already be expired" };
+  return { ok: true, user: user.name ?? user.email ?? user.entityId };
 }
 
 export async function POST(req: Request) {
@@ -86,17 +68,14 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     cookie?: string;
     graphqlOrigin?: string;
-    meField?: string;
-    storage?: Record<string, string>;
-    probeUser?: { id?: string; name?: string; email?: string };
+    probeUser?: { entityId?: string; name?: string; email?: string };
   } | null;
 
   if (!body || typeof body.graphqlOrigin !== "string") {
-    return NextResponse.json({ error: "expected { graphqlOrigin, cookie? }" }, { status: 400, headers });
+    return NextResponse.json({ error: "expected { graphqlOrigin, cookie }" }, { status: 400, headers });
   }
   const cookie = (body.cookie ?? "").trim();
   const graphqlOrigin = body.graphqlOrigin.trim() || "https://app.latticehq.com";
-  const meField = (body.meField ?? "me").trim() || "me";
 
   if (!/^https:\/\/([a-z0-9-]+\.)*latticehq\.com$/i.test(graphqlOrigin)) {
     return NextResponse.json(
@@ -104,13 +83,8 @@ export async function POST(req: Request) {
       { status: 400, headers },
     );
   }
-  // meField comes from browser-side introspection; guard against injection
-  // by allowing only ASCII identifier chars.
-  if (!/^[A-Za-z_][A-Za-z0-9_]{0,64}$/.test(meField)) {
-    return NextResponse.json({ error: `invalid meField: ${meField}` }, { status: 400, headers });
-  }
 
-  const check = await verifyLatticeCookie(cookie, graphqlOrigin, meField);
+  const check = await verifyLatticeCookie(cookie, graphqlOrigin);
   if (!check.ok) {
     const hint =
       body.probeUser?.id
@@ -133,7 +107,6 @@ export async function POST(req: Request) {
   await updateSecrets({
     LATTICE_COOKIE: cookie,
     LATTICE_GRAPHQL_ORIGIN: graphqlOrigin,
-    LATTICE_ME_FIELD: meField,
   });
-  return NextResponse.json({ ok: true, user: check.user, graphqlOrigin, meField }, { headers });
+  return NextResponse.json({ ok: true, user: check.user, graphqlOrigin }, { headers });
 }

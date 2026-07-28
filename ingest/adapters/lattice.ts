@@ -1,101 +1,92 @@
-import type { Adapter, IngestItem } from "./base";
+import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
 
 /**
- * Lattice adapter — talks to Lattice's internal GraphQL at
- * app.latticehq.com/graphql using the signed-in user's session cookies.
+ * Lattice adapter — pulls open action items from your 1:1s.
  *
- * Because Lattice's schema isn't publicly documented, this adapter is
- * *defensive*:
+ * Uses Lattice's own persisted query `OneOnOnesActionItemsSidebarQuery`
+ * (captured from their web app's Network tab). Sends it to
+ * <workspace>/graphql with the browser session cookies + a small set of
+ * `x-lattice-*` headers the app itself sends. Filters items to those
+ * where `assigneeUser.viewerIsUser === true` and `completedAt === null`.
  *
- *   1. First we introspect the top-level Query fields to find something
- *      that looks like a todo/action-item list.
- *   2. Then we call it with a wide-open selection set (id, title/text,
- *      state, dueDate, url, etc.) — GraphQL returns null for fields that
- *      don't exist rather than failing the whole query, but our fallback
- *      logic tries several candidate field names too.
- *   3. Anything that looks open + assigned-to-me becomes a Next task.
- *
- * When Lattice inevitably reshapes their schema, the error surfaces in
- * the "Test connections" panel with a clear message so you know it's
- * time to look at the new query shape.
+ * IMPORTANT: Lattice's JWT (in viewerContext cookie) expires ~1 hour
+ * after issue. When ingest starts failing with 401 or "not authenticated"
+ * errors, re-click the Lattice bookmarklet on /settings to grab a fresh
+ * session. This is unavoidable — Lattice's internal auth wasn't designed
+ * for programmatic access.
  */
 
-const CANDIDATE_QUERY_FIELDS = [
-  "myTodos",
-  "todos",
-  "myActionItems",
-  "actionItems",
-  "myTasks",
-  "tasks",
-  "myFeedback",
-];
+const ACTION_ITEMS_QUERY = `query OneOnOnesActionItemsSidebarQuery {
+  viewer {
+    user {
+      name
+      preferredName
+      userActiveOneOnOneRelationshipUsers {
+        entityId
+        name
+        preferredName
+        viewerUserRelationship {
+          oneOnOneMeetings(first: 1) {
+            edges {
+              node {
+                entityId
+                actionItems {
+                  entityId
+                  completedAt
+                  dueDate
+                  body
+                  createdAt
+                  assigneeUser {
+                    viewerIsUser
+                    entityId
+                    name
+                    id
+                  }
+                  id
+                }
+                id
+              }
+            }
+          }
+          id
+        }
+        id
+      }
+      id
+    }
+    id
+  }
+}`;
 
-interface LatticeTodo {
-  id?: string;
-  title?: string;
+interface LatticeActionItem {
+  id: string;
+  entityId?: string;
+  completedAt?: string | null;
+  dueDate?: string | null;
+  body?: string;
+  createdAt?: string;
+  assigneeUser?: {
+    viewerIsUser?: boolean;
+    entityId?: string;
+    name?: string;
+    id?: string;
+  };
+}
+
+interface LatticeRelationshipUser {
+  entityId?: string;
   name?: string;
-  text?: string;
-  content?: string;
-  description?: string;
-  status?: string;
-  state?: string;
-  completed?: boolean;
-  isCompleted?: boolean;
-  done?: boolean;
-  archived?: boolean;
-  dueDate?: string;
-  dueAt?: string;
-  due?: string;
-  url?: string;
-  permalink?: string;
-  webUrl?: string;
-  source?: { title?: string; name?: string; type?: string };
-  meeting?: { title?: string; name?: string };
-  review?: { title?: string; name?: string };
-}
-
-async function gql<T>(
-  cookie: string,
-  origin: string,
-  query: string,
-  variables?: Record<string, unknown>,
-): Promise<T> {
-  const url = `${origin.replace(/\/+$/, "")}/graphql`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json",
-      cookie,
-      origin,
-      referer: `${origin}/`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  if (!res.ok) throw new Error(`Lattice GraphQL HTTP ${res.status}`);
-  const body = (await res.json()) as { data?: T; errors?: Array<{ message: string }> };
-  if (body.errors?.length) {
-    throw new Error(`Lattice GraphQL: ${body.errors.map((e) => e.message).join("; ")}`);
-  }
-  if (!body.data) throw new Error("Lattice GraphQL returned no data");
-  return body.data;
-}
-
-async function pickTodoField(cookie: string, origin: string): Promise<string | null> {
-  const data = await gql<{ __schema: { queryType: { fields: Array<{ name: string }> } } }>(
-    cookie,
-    origin,
-    `{ __schema { queryType { fields { name } } } }`,
-  );
-  const names = data.__schema.queryType.fields.map((f) => f.name);
-  const lower = names.map((n) => n.toLowerCase());
-  for (const hint of CANDIDATE_QUERY_FIELDS) {
-    const idx = lower.indexOf(hint.toLowerCase());
-    if (idx >= 0) return names[idx];
-  }
-  // Fuzzy: anything with "todo" or "action" in the name.
-  const fuzzy = names.find((n) => /todo|action|task/i.test(n));
-  return fuzzy ?? null;
+  preferredName?: string;
+  viewerUserRelationship?: {
+    oneOnOneMeetings?: {
+      edges?: Array<{
+        node?: {
+          entityId?: string;
+          actionItems?: LatticeActionItem[];
+        };
+      }>;
+    };
+  };
 }
 
 export const latticeAdapter: Adapter = {
@@ -109,96 +100,93 @@ export const latticeAdapter: Adapter = {
     return "Use the 'Refresh Lattice session' bookmarklet in Settings.";
   },
 
-  async ingest(): Promise<IngestItem[]> {
+  async ingest(): Promise<AdapterIngestResult> {
     const cookie = process.env.LATTICE_COOKIE!;
     const origin = process.env.LATTICE_GRAPHQL_ORIGIN ?? "https://app.latticehq.com";
+    const url = `${origin.replace(/\/+$/, "")}/graphql`;
 
-    const field = await pickTodoField(cookie, origin);
-    if (!field) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        accept: "application/json",
+        cookie,
+        origin,
+        referer: `${origin}/`,
+        // Headers Lattice's own app sends. Missing these can silently
+        // change what the server returns.
+        "x-lattice-deployment": process.env.LATTICE_DEPLOYMENT ?? "us-prod-1",
+        "x-lattice-is-real-company": "true",
+        "x-lattice-market-segment": "smb_high",
+        "x-lattice-products": '{"OneOnOnesActionItemsSidebarQuery":"oneOnOnes"}',
+        "x-timezone": process.env.LATTICE_TIMEZONE ?? "America/New_York",
+      },
+      body: JSON.stringify({
+        id: "OneOnOnesActionItemsSidebarQuery",
+        query: ACTION_ITEMS_QUERY,
+      }),
+    });
+
+    if (!res.ok) {
       throw new Error(
-        "Lattice schema doesn't expose a recognizable todo/action-item field. Skipping.",
+        `Lattice GraphQL HTTP ${res.status} — session likely expired; re-click the bookmarklet.`,
       );
     }
-
-    // Grab everything remotely useful. Fields that don't exist in Lattice's
-    // schema will surface as GraphQL errors — if that happens the next
-    // ingest run's error message tells us which one to drop.
-    const query = `
-      query NnlLatticeTodos {
-        ${field} {
-          id
-          title
-          name
-          text
-          content
-          description
-          status
-          state
-          completed
-          isCompleted
-          done
-          archived
-          dueDate
-          dueAt
-          due
-          url
-          permalink
-          webUrl
-        }
-      }
-    `;
-    let data: { [k: string]: LatticeTodo[] | { items?: LatticeTodo[]; nodes?: LatticeTodo[]; edges?: Array<{ node: LatticeTodo }> } };
-    try {
-      data = await gql(cookie, origin, query);
-    } catch (err) {
-      // Retry with a narrower field set if the wide query failed on unknown
-      // fields. Titles + IDs are almost universal across GraphQL schemas.
-      const narrow = `query NnlLatticeTodos { ${field} { id title name status dueDate url } }`;
-      data = await gql(cookie, origin, narrow);
-      void err;
+    const body = (await res.json()) as {
+      data?: {
+        viewer?: {
+          user?: {
+            userActiveOneOnOneRelationshipUsers?: LatticeRelationshipUser[];
+          };
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+    if (body.errors?.length) {
+      throw new Error(`Lattice GraphQL: ${body.errors.map((e) => e.message).join("; ")}`);
     }
 
-    const raw = data[field];
-    const list: LatticeTodo[] = Array.isArray(raw)
-      ? raw
-      : (raw?.items ?? raw?.nodes ?? raw?.edges?.map((e) => e.node) ?? []);
+    const relationships =
+      body.data?.viewer?.user?.userActiveOneOnOneRelationshipUsers ?? [];
 
     const items: IngestItem[] = [];
-    for (const t of list) {
-      const done =
-        t.completed ??
-        t.isCompleted ??
-        t.done ??
-        (t.status ? /complete|done|closed/i.test(t.status) : undefined) ??
-        (t.state ? /complete|done|closed/i.test(t.state) : undefined);
-      if (done) continue;
-      if (t.archived) continue;
+    for (const rel of relationships) {
+      const otherName = rel.preferredName || rel.name || "someone";
+      const meeting = rel.viewerUserRelationship?.oneOnOneMeetings?.edges?.[0]?.node;
+      const actions = meeting?.actionItems ?? [];
+      for (const a of actions) {
+        if (a.completedAt) continue;
+        if (!a.assigneeUser?.viewerIsUser) continue;
+        const body = (a.body ?? "").trim();
+        if (!body) continue;
 
-      const id = t.id;
-      if (!id) continue;
+        const due = a.dueDate ? new Date(a.dueDate) : null;
+        const dueStr = due
+          ? ` (due ${due.toLocaleDateString([], { month: "short", day: "numeric" })})`
+          : "";
 
-      const title = (t.title ?? t.name ?? t.text ?? t.content ?? t.description ?? "").trim();
-      if (!title) continue;
-
-      const context =
-        t.source?.title ?? t.source?.name ?? t.meeting?.title ?? t.meeting?.name ?? t.review?.title ?? t.review?.name;
-      const due = t.dueDate ?? t.dueAt ?? t.due;
-      const dueStr = due
-        ? ` (due ${new Date(due).toLocaleDateString([], { month: "short", day: "numeric" })})`
-        : "";
-      const sourceRef = context
-        ? `From Lattice: ${context}${dueStr}.`
-        : `From Lattice${dueStr}.`;
-
-      items.push({
-        externalId: `lattice:${id}`,
-        title,
-        bucket: "next",
-        sourceRef,
-        url: t.url ?? t.permalink ?? t.webUrl,
-      });
+        items.push({
+          externalId: `lattice:action:${a.entityId ?? a.id}`,
+          title: stripMarkup(body),
+          bucket: "next",
+          sourceRef: `From Lattice 1:1 with ${otherName}${dueStr}.`,
+          url: rel.entityId ? `${origin}/users/${rel.entityId}/1-1s` : undefined,
+        });
+      }
     }
 
-    return items;
+    return { items };
   },
 };
+
+/**
+ * Lattice stores action-item bodies as rich text (occasionally HTML-ish).
+ * Strip tags and collapse whitespace so the title reads cleanly on the board.
+ */
+function stripMarkup(s: string): string {
+  return s
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}

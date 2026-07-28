@@ -236,16 +236,24 @@ async function testLattice(): Promise<TestResult> {
     };
   }
   try {
+    // Small no-op query that confirms both session validity and access to
+    // viewer.user. Uses the same headers the real ingest sends.
     const res = await fetch(`${origin.replace(/\/+$/, "")}/graphql`, {
       method: "POST",
       headers: {
-        "content-type": "application/json",
+        "content-type": "application/json; charset=utf-8",
         accept: "application/json",
         cookie,
         origin,
         referer: `${origin}/`,
+        "x-lattice-deployment": process.env.LATTICE_DEPLOYMENT ?? "us-prod-1",
+        "x-lattice-is-real-company": "true",
+        "x-lattice-market-segment": "smb_high",
+        "x-timezone": process.env.LATTICE_TIMEZONE ?? "America/New_York",
       },
-      body: JSON.stringify({ query: "query WhoAmI { me { id name email } }" }),
+      body: JSON.stringify({
+        query: "query NnlLatticeTest { viewer { user { name email entityId } } }",
+      }),
     });
     if (!res.ok) {
       return {
@@ -256,7 +264,7 @@ async function testLattice(): Promise<TestResult> {
       };
     }
     const body = (await res.json()) as {
-      data?: { me?: { id?: string; name?: string; email?: string } };
+      data?: { viewer?: { user?: { name?: string; email?: string; entityId?: string } } };
       errors?: Array<{ message: string }>;
     };
     if (body.errors?.length) {
@@ -267,21 +275,21 @@ async function testLattice(): Promise<TestResult> {
         error: body.errors[0].message.slice(0, 160),
       };
     }
-    const me = body.data?.me;
-    if (!me?.id) {
+    const user = body.data?.viewer?.user;
+    if (!user?.entityId) {
       return {
         name: "lattice",
         configured: true,
         ok: false,
-        error: "session accepted but me query returned no data",
+        error: "session accepted but viewer.user is empty (JWT likely expired)",
       };
     }
     return {
       name: "lattice",
       configured: true,
       ok: true,
-      identity: me.name ?? me.email ?? me.id,
-      detail: me.email && me.email !== me.name ? me.email : undefined,
+      identity: user.name ?? user.email ?? user.entityId,
+      detail: user.email,
     };
   } catch (err) {
     return {

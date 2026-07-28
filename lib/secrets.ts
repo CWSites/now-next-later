@@ -196,14 +196,7 @@ export const SECRET_SCHEMA: SecretField[] = [
     placeholder: "https://your-workspace.latticehq.com",
     help: "Auto-populated by the bookmarklet — the workspace subdomain where your session lives.",
   },
-  {
-    key: "LATTICE_ME_FIELD",
-    label: "Lattice viewer field",
-    secret: false,
-    provider: "lattice",
-    placeholder: "me / viewer / currentUser",
-    help: "Auto-populated by the bookmarklet after introspecting Lattice's schema.",
-  },
+
 ];
 
 const SECRET_KEYS = new Set(SECRET_SCHEMA.map((f) => f.key));
