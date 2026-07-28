@@ -15,17 +15,24 @@
 const BOOKMARKLET_SRC = `(async()=>{try{
   if(!location.host.endsWith('latticehq.com')){alert('Run this from a latticehq.com tab (e.g. your workspace subdomain).');return;}
   const graphqlOrigin=location.origin;
-  const probe=await fetch(graphqlOrigin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({query:'query WhoAmI { me { id name email } }'})});
-  const probeBody=await probe.json().catch(()=>({}));
-  const probeOk=probe.ok && probeBody.data && probeBody.data.me && probeBody.data.me.id;
-  if(!probeOk){alert('\u274C Even from inside Lattice this failed: '+probe.status+' '+(probeBody.errors?probeBody.errors[0].message:'no me')+'. You may not be signed in.');return;}
+  const gql=async(query)=>{const r=await fetch(graphqlOrigin+'/graphql',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({query})});return{status:r.status,body:await r.json().catch(()=>({}))};};
+  const introspection=await gql('{__schema{queryType{fields{name type{name kind ofType{name kind}}}}}}');
+  if(!introspection.body.data){alert('\u274C Even from inside Lattice this failed: '+introspection.status+' '+(introspection.body.errors?introspection.body.errors[0].message:'introspection blocked')+'. You may not be signed in.');return;}
+  const fields=introspection.body.data.__schema.queryType.fields;
+  const meCandidates=['me','viewer','currentUser','self','user','whoami','currentViewer'];
+  const meField=meCandidates.map(n=>fields.find(f=>f.name.toLowerCase()===n.toLowerCase())).find(Boolean);
+  if(!meField){alert('\u274C No identity field found. Top-level Query fields: '+fields.slice(0,20).map(f=>f.name).join(', ')+'...');return;}
+  const probe=await gql('{'+meField.name+'{id name email}}');
+  if(!probe.body.data||!probe.body.data[meField.name]||!probe.body.data[meField.name].id){
+    const narrow=await gql('{'+meField.name+'{id}}');
+    if(!narrow.body.data||!narrow.body.data[meField.name]){alert('\u274C Query '+meField.name+' returned nothing: '+JSON.stringify(probe.body.errors||probe.body).slice(0,200));return;}
+    probe.body=narrow.body;
+  }
+  const probeUser=probe.body.data[meField.name];
   const cookie=document.cookie;
-  const storageDump={};
-  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&/token|auth|session|jwt|bearer/i.test(k))storageDump['ls:'+k]=localStorage.getItem(k);}}catch(e){}
-  try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);if(k&&/token|auth|session|jwt|bearer/i.test(k))storageDump['ss:'+k]=sessionStorage.getItem(k);}}catch(e){}
-  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin,storage:storageDump,probeUser:probeBody.data.me})});
+  const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cookie,graphqlOrigin,meField:meField.name,probeUser})});
   const data=await res.json();
-  if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+data.user+' at '+graphqlOrigin+'.');}
+  if(res.ok){alert('\u2705 Lattice session saved. Authenticated as '+data.user+' via '+meField.name+' at '+graphqlOrigin+'.');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status))+'\\n\\nHint: '+(data.hint||'?'));}
 }catch(e){alert('Error: '+e.message);}})();`;
 
