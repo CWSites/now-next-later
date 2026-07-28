@@ -135,14 +135,16 @@ export function Board({ initialTasks, dateLabel }: Props) {
       const created = summary.totalCreated ?? 0;
       const updated = summary.totalUpdated ?? 0;
       const removed = summary.totalRemoved ?? 0;
+      const dedup = summary.totalSkipped ?? 0;
       const errored = summary.adapters?.filter((a: { error?: string }) => a.error) ?? [];
-      const skipped = summary.adapters?.filter((a: { ran: boolean }) => !a.ran) ?? [];
+      const disabled = summary.adapters?.filter((a: { ran: boolean }) => !a.ran) ?? [];
       const parts: string[] = [];
       if (created) parts.push(`${created} new`);
       if (updated) parts.push(`${updated} synced`);
+      if (dedup) parts.push(`${dedup} dedup'd`);
       if (removed) parts.push(`${removed} removed`);
       if (errored.length) parts.push(`${errored.length} errored`);
-      if (skipped.length) parts.push(`${skipped.length} skipped`);
+      if (disabled.length) parts.push(`${disabled.length} disabled`);
       setLastResult(parts.length ? parts.join(" · ") : "no changes");
       await refetchTasks();
     } catch (err) {

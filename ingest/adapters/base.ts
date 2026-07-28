@@ -46,5 +46,6 @@ export interface AdapterResult {
   created: number;
   updated: number;
   removed: number;
+  skipped: number;
   error?: string;
 }

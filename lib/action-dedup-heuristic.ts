@@ -58,7 +58,22 @@ const STOPWORDS = new Set([
   "my","me","i","you","your","we","us","our","they","them","their","he","she","him","her","his","hers",
   "is","am","are","was","were","be","been","being","do","does","did","done","have","has","had",
   "can","could","should","would","will","may","might","must","this","that","these","those","some","any",
-  "if","then","than","so","just","also","only","not","no","yes",
+  "if","then","than","so","just","also","only","not","no","yes","s",
+  // Time / date noise — filtered so calendar-flavored titles don't accumulate
+  // meaningless overlap or drift apart from the Granola / morning-brief
+  // versions of the same commitment.
+  "today","tomorrow","yesterday","tonight","morning","afternoon","evening","night",
+  "am","pm","noon","midnight",
+  "monday","tuesday","wednesday","thursday","friday","saturday","sunday",
+  "mon","tue","tues","wed","thu","thur","thurs","fri","sat","sun",
+  "january","february","march","april","may","june","july","august",
+  "september","october","november","december",
+  "jan","feb","mar","apr","jun","jul","aug","sep","sept","oct","nov","dec",
+  "week","weekly","day","daily","month","monthly","hour","minute","min","hr",
+  // "prep for X" / "prepare for X" / "warmup for X" collapse to X in the
+  // comparison view — preparing to attend a meeting is the same commitment
+  // as attending it.
+  "prep","prepping","prepare","preparing","prepared","warmup","warm","up",
   // meta-verbs handled below via ACTION_VERBS
 ]);
 
@@ -89,8 +104,24 @@ const ACTION_VERBS = new Set([
 
 const ACTION_MARKER = "__contact__";
 
+/**
+ * Strip time/date suffixes commonly appended to calendar titles before we
+ * even try to tokenize. Handles patterns like:
+ *   "Foo — today 3:00 PM"
+ *   "Foo - Fri, Jul 31 3:00 PM"
+ *   "Foo (Jul 27)"
+ */
+function stripDateSuffix(text: string): string {
+  return text
+    .replace(/\s+[—–-]\s+today\s+\d{1,2}:\d{2}\s*(am|pm)?\s*$/i, "")
+    .replace(/\s+[—–-]\s+(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*,?\s+.+?\d{1,2}(:\d{2})?\s*(am|pm)?\s*$/i, "")
+    .replace(/\s*\((jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}(,?\s*\d{4})?\)\s*$/i, "")
+    .replace(/\s+\d{1,2}:\d{2}\s*(am|pm)?\s*$/i, "");
+}
+
 /** Split into words, expand aliases, drop stopwords, collapse action verbs. */
 function normalize(text: string): { tokens: string[]; properNouns: Set<string> } {
+  text = stripDateSuffix(text);
   const properNouns = new Set<string>();
   // Grab capitalized single words as candidate proper nouns before lowercasing.
   // We skip words that start a sentence — the second-plus capitalized word in
@@ -201,8 +232,7 @@ export function dedupHeuristically(items: IngestItem[]): IngestItem[] {
       out.push(members[0]);
       continue;
     }
-    // Longest title wins as canonical — usually the most descriptive.
-    const canonical = members.reduce((best, m) => (m.title.length > best.title.length ? m : best));
+    const canonical = pickCanonical(members);
     const sources = Array.from(
       new Set(members.map((m) => m.sourceRef).filter((s): s is string => Boolean(s))),
     );
@@ -222,6 +252,32 @@ export function dedupHeuristically(items: IngestItem[]): IngestItem[] {
     });
   }
   return out;
+}
+
+/**
+ * Choose the best title from a cluster of duplicates. Rules, in order:
+ *   1. Prefer items whose title starts with "Prep for" / "Prepare for" /
+ *      "Warmup for". Those framings are more actionable than the raw
+ *      meeting name, so if the user wrote one, use it.
+ *   2. Prefer items that did NOT come from calendar (externalId `gcal:*`).
+ *      Calendar titles carry meeting metadata that's noisy on the board.
+ *   3. Within the preferred subset, take the longest title (most descriptive).
+ */
+function pickCanonical(members: IngestItem[]): IngestItem {
+  const isPrep = (m: IngestItem) => /^(prep|prepare|prepping|warmup|warm\s*up)\s+for\b/i.test(m.title);
+  const isGcal = (m: IngestItem) => (m.externalId ?? "").startsWith("gcal:");
+
+  const prep = members.filter(isPrep);
+  if (prep.length > 0) return longest(prep);
+
+  const nonCal = members.filter((m) => !isGcal(m));
+  if (nonCal.length > 0) return longest(nonCal);
+
+  return longest(members);
+}
+
+function longest(items: IngestItem[]): IngestItem {
+  return items.reduce((best, m) => (m.title.length > best.title.length ? m : best));
 }
 
 function hash(s: string): string {
