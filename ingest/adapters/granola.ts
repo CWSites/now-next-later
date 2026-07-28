@@ -1,5 +1,6 @@
 import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
 import { extractActionItems, isMine } from "@/lib/granola-extract";
+import { dedupSemantically } from "@/lib/action-dedup";
 
 /**
  * Granola adapter.
@@ -139,6 +140,19 @@ export const granolaAdapter: Adapter = {
       }
     }
 
-    return { items, removedExternalIds };
+    // Cross-note dedup: if the user's set ANTHROPIC_API_KEY, group items
+    // that mean the same thing so they land on the board once instead of
+    // three times. Pass-through if no key.
+    const deduped = await dedupSemantically(items);
+    // If dedup merged items, retire the individual externalIds so we don't
+    // leave the old un-merged tasks sitting around from a previous ingest.
+    if (deduped.length < items.length) {
+      const survivingIds = new Set(deduped.map((i) => i.externalId));
+      for (const orig of items) {
+        if (!survivingIds.has(orig.externalId)) removedExternalIds.push(orig.externalId);
+      }
+    }
+
+    return { items: deduped, removedExternalIds };
   },
 };

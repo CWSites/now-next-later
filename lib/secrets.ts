@@ -153,6 +153,13 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "Comma-separated substrings (case-insensitive). Notes whose title contains any won't be scanned for action items.",
   },
   {
+    key: "ANTHROPIC_API_KEY",
+    label: "Anthropic API key (for semantic dedup)",
+    secret: true,
+    provider: "granola",
+    help: "Optional. When set, action items are grouped by meaning across notes — e.g. 'Talk to Ron about i18n' merges with 'Reach out to Ron re: internationalization'. Uses claude-3-5-haiku (~$0.001/refresh). Get at console.anthropic.com → API keys.",
+  },
+  {
     key: "FELLOW_CLIENT_ID",
     label: "Fellow OAuth client ID",
     secret: false,
