@@ -144,9 +144,7 @@ export const gcalAdapter: Adapter = {
         }
       }
       const time = startsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const day = startsAt.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-      const isToday = startsAt <= endOfDay;
-      const when = isToday ? `today ${time}` : `${day} ${time}`;
+      const when = `today ${time}`;
 
       const conf = ev.hangoutLink || ev.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri;
       const url = ev.htmlLink;
