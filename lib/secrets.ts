@@ -145,6 +145,14 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "Granola desktop app → Settings → API keys → Create personal key. See docs.granola.ai/help-center/sharing/integrations/granola-api.",
   },
   {
+    key: "GRANOLA_SKIP_TITLES",
+    label: "Skip notes matching",
+    secret: false,
+    provider: "granola",
+    placeholder: "stand-up, tea time, sync",
+    help: "Comma-separated substrings (case-insensitive). Notes whose title contains any won't be scanned for action items.",
+  },
+  {
     key: "FELLOW_CLIENT_ID",
     label: "Fellow OAuth client ID",
     secret: false,

@@ -1,28 +1,34 @@
-import type { Adapter, IngestItem } from "./base";
+import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
+import { extractActionItems, isMine } from "@/lib/granola-extract";
 
 /**
- * Granola adapter — calls the public API at public-api.granola.ai.
+ * Granola adapter.
  *
- * v1: pulls recent notes and surfaces one task per note into the Next
- * bucket, so the daily brief can prompt "review this meeting's notes."
- * If the notes API response includes structured action items we can
- * split those out into individual tasks in a follow-up.
+ * Rather than surfacing "review notes" placeholders, this adapter fetches
+ * each recent note's full body and extracts action items directly. The
+ * heavy lifting lives in lib/granola-extract.ts; here we handle:
+ *   - listing recent notes (skipping ones whose title matches the skip list)
+ *   - fetching each note's full markdown
+ *   - filtering extracted actions to ones assigned to me / unassigned
+ *   - upserting stable externalIds so re-runs don't duplicate
+ *   - retiring old `granola:note:*` fallback tasks now that we're extracting
  */
 
 const API = "https://public-api.granola.ai/v1";
 
-interface GranolaNote {
+interface GranolaNoteMeta {
   id: string;
   title?: string;
   created_at?: string;
   updated_at?: string;
-  url?: string;
-  // Best-effort — actual field names to be confirmed once we see a live
-  // response. The mapping below reads whichever fields are present.
-  content?: string;
-  summary?: string;
-  action_items?: Array<{ text?: string; done?: boolean; id?: string }>;
-  meeting?: { title?: string; start_time?: string };
+  owner?: { name?: string; email?: string };
+}
+
+interface GranolaNoteFull extends GranolaNoteMeta {
+  web_url?: string;
+  summary_markdown?: string;
+  summary_text?: string;
+  calendar_event?: { event_title?: string; scheduled_start_time?: string };
 }
 
 export const granolaAdapter: Adapter = {
@@ -36,59 +42,103 @@ export const granolaAdapter: Adapter = {
     return "Paste GRANOLA_API_KEY in Settings (Granola app → Settings → API keys).";
   },
 
-  async ingest(): Promise<IngestItem[]> {
+  async ingest(): Promise<AdapterIngestResult> {
     const token = process.env.GRANOLA_API_KEY!;
+    const skipTitles = (process.env.GRANOLA_SKIP_TITLES ?? "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
 
-    // Pull notes updated in the last 14 days so we're covering both today's
-    // meetings and anything still open from last week.
-    const since = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
-    const params = new URLSearchParams({
-      updated_since: since,
-      limit: "50",
-    });
-
-    const res = await fetch(`${API}/notes?${params.toString()}`, {
+    // 1) list recent notes (metadata only, no body)
+    const listRes = await fetch(`${API}/notes?limit=50`, {
       headers: { authorization: `Bearer ${token}`, accept: "application/json" },
     });
-    if (!res.ok) {
-      throw new Error(`Granola /notes failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    if (!listRes.ok) {
+      throw new Error(
+        `Granola /notes failed: ${listRes.status} ${(await listRes.text()).slice(0, 200)}`,
+      );
     }
-    const data = (await res.json()) as { data?: GranolaNote[]; notes?: GranolaNote[] };
-    const notes = data.data ?? data.notes ?? [];
+    const listData = (await listRes.json()) as {
+      notes?: GranolaNoteMeta[];
+      data?: GranolaNoteMeta[];
+    };
+    const notes = listData.notes ?? listData.data ?? [];
+
+    // Restrict to the recent window so we don't hit N-per-note calls on a
+    // whole archive. Granola's list returns newest first; 14 days is enough
+    // to catch anything still active.
+    const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
+    const recent = notes.filter((n) => {
+      const t = new Date(n.updated_at ?? n.created_at ?? 0).getTime();
+      if (Number.isNaN(t)) return true;
+      return t >= cutoff;
+    });
+
+    // Identity for "is this action item mine?" comparisons. The first note's
+    // owner is always the authenticated user (Granola's /notes only returns
+    // notes you own or are a member of, and owner reflects the note holder).
+    const meOwner = recent.find((n) => n.owner?.name)?.owner;
+    const myNames = [meOwner?.name, meOwner?.email?.split("@")[0]]
+      .filter((s): s is string => Boolean(s))
+      .flatMap((s) => [s, s.split(/\s+/)[0]]);
 
     const items: IngestItem[] = [];
-    for (const n of notes) {
-      const title = n.title || n.meeting?.title || "(untitled note)";
-      const when = n.meeting?.start_time || n.created_at;
-      const suffix = when
-        ? ` (${new Date(when).toLocaleDateString([], { month: "short", day: "numeric" })})`
-        : "";
+    const removedExternalIds: string[] = [];
 
-      // If the response includes structured action items, prefer emitting
-      // one task per open item — that's much higher signal than "review
-      // note X". Fall back to a single "review note" task otherwise.
-      const openActions = (n.action_items ?? []).filter((a) => !a.done && a.text);
-      if (openActions.length > 0) {
-        for (const a of openActions) {
-          items.push({
-            externalId: `granola:action:${n.id}:${a.id ?? Buffer.from(a.text!).toString("base64").slice(0, 12)}`,
-            title: a.text!.trim(),
-            bucket: "next",
-            sourceRef: `From Granola: ${title}${suffix}.`,
-            url: n.url,
-          });
-        }
-      } else {
+    for (const meta of recent) {
+      const title = meta.title ?? "(untitled note)";
+      const lowerTitle = title.toLowerCase();
+      if (skipTitles.some((s) => lowerTitle.includes(s))) {
+        // Also retire the old-shape fallback task if we had one for this note.
+        removedExternalIds.push(`granola:note:${meta.id}`);
+        continue;
+      }
+
+      // 2) fetch full note for the markdown body
+      let full: GranolaNoteFull;
+      try {
+        const res = await fetch(`${API}/notes/${meta.id}`, {
+          headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+        });
+        if (!res.ok) continue;
+        full = (await res.json()) as GranolaNoteFull;
+      } catch {
+        continue;
+      }
+
+      const md = full.summary_markdown ?? full.summary_text ?? "";
+      const actions = md ? extractActionItems(md) : [];
+      const mine = actions.filter((a) => isMine(a, myNames));
+
+      // Always retire the old "Review notes:" fallback for this note — we're
+      // replacing it with either extracted actions or nothing at all.
+      removedExternalIds.push(`granola:note:${meta.id}`);
+
+      if (mine.length === 0) continue;
+
+      const noteTitle = full.title ?? title;
+      const dateLabel = full.calendar_event?.scheduled_start_time
+        ? new Date(full.calendar_event.scheduled_start_time).toLocaleDateString([], {
+            month: "short",
+            day: "numeric",
+          })
+        : full.created_at
+          ? new Date(full.created_at).toLocaleDateString([], { month: "short", day: "numeric" })
+          : "";
+      const suffix = dateLabel ? ` (${dateLabel})` : "";
+
+      for (const a of mine) {
         items.push({
-          externalId: `granola:note:${n.id}`,
-          title: `Review notes: ${title}${suffix}`,
+          externalId: `granola:action:${meta.id}:${a.slug}`,
+          title: a.title,
           bucket: "next",
-          sourceRef: `In Granola notes${suffix}.`,
-          url: n.url,
+          sourceRef: `From Granola: ${noteTitle}${suffix}${a.owner ? ` — ${a.owner}` : ""}.`,
+          notes: a.detail,
+          url: full.web_url,
         });
       }
     }
 
-    return items;
+    return { items, removedExternalIds };
   },
 };
