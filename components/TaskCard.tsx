@@ -10,12 +10,13 @@ import type { Task } from "@/lib/types";
 interface Props {
   task: Task;
   dragging?: boolean;
+  justMerged?: boolean;
   onToggle?: () => void;
   onEdit?: (title: string) => void;
   onDelete?: () => void;
 }
 
-export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) {
+export function TaskCard({ task, dragging, justMerged, onToggle, onEdit, onDelete }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
@@ -41,8 +42,12 @@ export function TaskCard({ task, dragging, onToggle, onEdit, onDelete }: Props) 
       style={style}
       {...attributes}
       {...listeners}
-      className={`group flex items-start gap-2 rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm shadow-sm cursor-grab touch-none select-none active:cursor-grabbing dark:border-neutral-800 dark:bg-neutral-900 ${
-        dragging ? "ring-2 ring-blue-400" : ""
+      className={`group flex items-start gap-2 rounded-md border px-2 py-1.5 text-sm shadow-sm cursor-grab touch-none select-none transition-all duration-500 active:cursor-grabbing ${
+        dragging
+          ? "ring-2 ring-blue-400 border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+          : justMerged
+            ? "ring-2 ring-green-400 border-green-300 bg-green-50 dark:ring-green-500 dark:border-green-700 dark:bg-green-950/60"
+            : "border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
       }`}
     >
       <input

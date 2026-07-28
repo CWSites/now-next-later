@@ -17,9 +17,11 @@ interface Props {
   onCreate: (title: string, url?: string) => void;
   onUpdate: (id: string, patch: Partial<Task>) => void;
   onDelete: (id: string) => void;
+  /** When set to a task id, that card briefly flashes to confirm a merge. */
+  flashMergedId?: string | null;
 }
 
-export function Column({ bucket, tasks, onCreate, onUpdate, onDelete }: Props) {
+export function Column({ bucket, tasks, onCreate, onUpdate, onDelete, flashMergedId }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: bucket });
   const [draft, setDraft] = useState("");
   const [urlDraft, setUrlDraft] = useState("");
@@ -119,6 +121,7 @@ export function Column({ bucket, tasks, onCreate, onUpdate, onDelete }: Props) {
           <TaskCard
             key={task.id}
             task={task}
+            justMerged={flashMergedId === task.id}
             onToggle={() => onUpdate(task.id, { completed: !task.completed })}
             onEdit={(title) => onUpdate(task.id, { title })}
             onDelete={() => onDelete(task.id)}

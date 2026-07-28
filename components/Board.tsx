@@ -58,6 +58,10 @@ export function Board({ initialTasks, dateLabel }: Props) {
   // Tracks whether Shift is held during an active drag. When true, dropping
   // onto another task card merges the two instead of reordering.
   const [mergeMode, setMergeMode] = useState(false);
+  // Post-merge feedback: id of the target card that just absorbed a merge
+  // (flashes for ~1.5s) plus a short toast describing the merge.
+  const [flashMergedId, setFlashMergedId] = useState<string | null>(null);
+  const [mergeToast, setMergeToast] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -166,6 +170,8 @@ export function Board({ initialTasks, dateLabel }: Props) {
   }
 
   async function mergeTasks(sourceId: string, targetId: string) {
+    const sourceBefore = tasks.find((t) => t.id === sourceId);
+    const targetBefore = tasks.find((t) => t.id === targetId);
     // Optimistic: fold source into target locally, then reconcile.
     setTasks((prev) => {
       const source = prev.find((t) => t.id === sourceId);
@@ -188,16 +194,37 @@ export function Board({ initialTasks, dateLabel }: Props) {
       };
       return prev.filter((t) => t.id !== sourceId).map((t) => (t.id === targetId ? nextTarget : t));
     });
+
+    // Fire the flash + toast right after the optimistic update so the user
+    // gets immediate feedback even if the network round-trip is slow.
+    setFlashMergedId(targetId);
+    if (sourceBefore && targetBefore) {
+      const src = sourceBefore.title.slice(0, 50);
+      const tgt = targetBefore.title.slice(0, 50);
+      setMergeToast(`➕ Merged “${src}” into “${tgt}”`);
+    }
+
     const res = await fetch("/api/tasks/merge", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sourceId, targetId }),
     });
     if (!res.ok) {
-      // Roll back by refetching truth.
+      // Roll back by refetching truth. Also swap the toast to an error.
+      setMergeToast(`⚠️ Merge failed — reverted`);
       await refetchTasks();
     }
   }
+
+  // Clear the flash + toast after a short window so they don't linger.
+  useEffect(() => {
+    if (!flashMergedId && !mergeToast) return;
+    const t = window.setTimeout(() => {
+      setFlashMergedId(null);
+      setMergeToast(null);
+    }, 2200);
+    return () => window.clearTimeout(t);
+  }, [flashMergedId, mergeToast]);
 
   async function refetchTasks() {
     const res = await fetch("/api/tasks");
@@ -444,6 +471,7 @@ export function Board({ initialTasks, dateLabel }: Props) {
               onCreate={(title, url) => createTask(title, bucket, url)}
               onUpdate={updateTask}
               onDelete={deleteTask}
+              flashMergedId={flashMergedId}
             />
           </SortableContext>
         ))}
@@ -462,6 +490,19 @@ export function Board({ initialTasks, dateLabel }: Props) {
           {mergeMode
             ? "✒️ Merge mode — drop on another task to combine them"
             : "Hold ⇧ Shift to merge into another task instead of reordering"}
+        </div>
+      ) : null}
+      {mergeToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border px-3 py-1 text-xs shadow-lg backdrop-blur ${
+            mergeToast.startsWith("⚠")
+              ? "border-red-400 bg-red-100/95 text-red-900 dark:border-red-500 dark:bg-red-950/85 dark:text-red-100"
+              : "border-green-400 bg-green-100/95 text-green-900 dark:border-green-500 dark:bg-green-950/85 dark:text-green-100"
+          }`}
+        >
+          {mergeToast}
         </div>
       ) : null}
       {view === "done" ? (
