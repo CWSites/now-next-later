@@ -88,6 +88,14 @@ export const gcalAdapter: Adapter = {
       return "later";
     }
 
+    // User-configurable skip list. Case-insensitive substring match against
+    // the event title. Empty entries are ignored so trailing/leading commas
+    // don't blackhole every event.
+    const skipTitles = (process.env.GCAL_SKIP_TITLES ?? "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => s.length > 0);
+
     const items: IngestItem[] = [];
     for (const ev of events) {
       if (ev.status === "cancelled") continue;
@@ -106,6 +114,12 @@ export const gcalAdapter: Adapter = {
       const bucket = bucketFor(startsAt);
 
       const title = ev.summary?.trim() || "(no title)";
+
+      // Filter recurring / low-signal meetings the user has opted out of.
+      if (skipTitles.length > 0) {
+        const lower = title.toLowerCase();
+        if (skipTitles.some((s) => lower.includes(s))) continue;
+      }
       const time = startsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const day = startsAt.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
       const isToday = startsAt <= endOfDay;

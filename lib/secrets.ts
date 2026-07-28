@@ -130,6 +130,14 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "Set automatically after clicking 'Connect Google Calendar'.",
   },
   {
+    key: "GCAL_SKIP_TITLES",
+    label: "Skip events matching",
+    secret: false,
+    provider: "gcal",
+    placeholder: "standup, tea time, office hours",
+    help: "Comma-separated substrings (case-insensitive). Events whose title contains any of these won't be ingested as tasks.",
+  },
+  {
     key: "GRANOLA_API_KEY",
     label: "Granola API key",
     secret: true,
