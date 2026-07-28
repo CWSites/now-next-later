@@ -50,7 +50,7 @@ const BOOKMARKLET_SRC = `(async()=>{try{
   }
   const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({items,who:who&&(who.name||who.preferredName)})});
   const data=await res.json();
-  if(res.ok){const parts=[];if(data.created)parts.push(data.created+' new');if(data.updated)parts.push(data.updated+' synced');if(data.removed)parts.push(data.removed+' removed');alert('\u2705 Lattice sync: '+(parts.length?parts.join(', '):'no changes')+'.\\n\\n'+mineActs+' of '+totalActs+' open items across your 1:1s are assigned to you.');}
+  if(res.ok){const parts=[];if(data.created)parts.push(data.created+' new');if(data.updated)parts.push(data.updated+' synced');if(data.skipped)parts.push(data.skipped+' merged into existing');if(data.removed)parts.push(data.removed+' removed');alert('\u2705 Lattice sync: '+(parts.length?parts.join(', '):'no changes')+'.\\n\\n'+mineActs+' of '+totalActs+' open items across your 1:1s are assigned to you.');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status)));}
 }catch(e){alert('Error: '+e.message);}})();`;
 

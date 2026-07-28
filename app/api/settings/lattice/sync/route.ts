@@ -1,7 +1,30 @@
 import { NextResponse } from "next/server";
 import { deleteByExternalId, getAllTasks, upsertByExternalId } from "@/lib/storage";
 import { applySecretsToEnv, updateSecrets } from "@/lib/secrets";
-import type { Bucket } from "@/lib/types";
+import { similarity } from "@/lib/action-dedup-heuristic";
+import type { Bucket, Task } from "@/lib/types";
+
+const DUP_THRESHOLD = 0.5;
+
+/**
+ * Same rule as ingest/run.ts::shouldSkipAsDuplicate: don't create a new
+ * task if there's already a live task that means the same thing. Prevents
+ * bookmarklet syncs from duplicating morning-brief seeds or manual tasks.
+ */
+function findSemanticDup(
+  incoming: { title: string; externalId?: string },
+  existing: Task[],
+): Task | null {
+  let best: { task: Task; score: number } | null = null;
+  for (const t of existing) {
+    if (t.externalId === incoming.externalId) continue;
+    if (t.completed) continue;
+    const score = similarity(t.title, incoming.title);
+    if (score < DUP_THRESHOLD) continue;
+    if (!best || score > best.score) best = { task: t, score };
+  }
+  return best?.task ?? null;
+}
 
 /**
  * Bookmarklet-driven Lattice sync.
@@ -93,10 +116,26 @@ export async function POST(req: Request) {
 
   await applySecretsToEnv();
 
+  // Snapshot once so all incoming items compare against the same baseline.
+  const preSync = await getAllTasks();
+
   let created = 0;
   let updated = 0;
+  let skipped = 0;
   for (const item of clean) {
-    const { created: wasCreated } = await upsertByExternalId({
+    const alreadyLinked = preSync.some((t) => t.externalId === item.externalId);
+    if (!alreadyLinked) {
+      const dup = findSemanticDup(item, preSync);
+      if (dup) {
+        // A live task already covers this commitment (typically a
+        // morning-brief seed or a task from another adapter). Skip the
+        // Lattice one so the user sees a single row — the existing one
+        // keeps its position, notes, and history.
+        skipped++;
+        continue;
+      }
+    }
+    const { created: wasCreated, tombstoned } = await upsertByExternalId({
       externalId: item.externalId,
       title: item.title,
       bucket: item.bucket,
@@ -104,6 +143,10 @@ export async function POST(req: Request) {
       sourceRef: item.sourceRef,
       url: item.url,
     });
+    if (tombstoned) {
+      skipped++;
+      continue;
+    }
     if (wasCreated) created++;
     else updated++;
   }
@@ -137,6 +180,7 @@ export async function POST(req: Request) {
       created,
       updated,
       removed,
+      skipped,
       syncedAt,
       who: body.who ?? null,
     },
