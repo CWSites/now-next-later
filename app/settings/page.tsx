@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { getSecretsView, PROVIDERS } from "@/lib/secrets";
+import { applySecretsToEnv, getSecretsView, PROVIDERS } from "@/lib/secrets";
 import { SettingsForm } from "@/components/SettingsForm";
 import { HelpTip } from "@/components/HelpTip";
 
@@ -11,13 +11,17 @@ interface Params {
 }
 
 export default async function SettingsPage({ searchParams }: Params) {
+  // Populate process.env from secrets.local.json so runtime-configurable
+  // values like SLACK_WORKSPACE_MATCH flow to the bookmarklet without a
+  // dev-server restart.
+  await applySecretsToEnv();
   const settings = await getSecretsView();
   const { gcal, fellow } = await searchParams;
   const h = await headers();
   const host = h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
   const appOrigin = `${proto}://${host}`;
-  const workspaceMatch = process.env.SLACK_WORKSPACE_MATCH ?? "your-workspace";
+  const workspaceMatch = (process.env.SLACK_WORKSPACE_MATCH ?? "").trim();
   return (
     <main className="mx-auto max-w-6xl p-6">
       <header className="mb-6 flex items-baseline justify-between">

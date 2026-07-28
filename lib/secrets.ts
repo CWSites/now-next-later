@@ -122,6 +122,14 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "The `d` cookie on slack.com.",
   },
   {
+    key: "SLACK_WORKSPACE_MATCH",
+    label: "Workspace match",
+    secret: false,
+    provider: "slack",
+    placeholder: "e.g. your-workspace",
+    help: "Case-insensitive substring the bookmarklet uses to pick your workspace from Slack's localStorage. Leave empty to auto-pick the first team.",
+  },
+  {
     key: "GOOGLE_CLIENT_ID",
     label: "Google OAuth Client ID",
     secret: false,
