@@ -52,6 +52,8 @@ export function Board({ initialTasks, dateLabel }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [lastErrors, setLastErrors] = useState<Array<{ name: string; error: string }>>([]);
+  const [showErrors, setShowErrors] = useState(false);
   const [view, setView] = useState<"board" | "done">("board");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -129,6 +131,8 @@ export function Board({ initialTasks, dateLabel }: Props) {
   async function refresh() {
     setRefreshing(true);
     setLastResult(null);
+    setLastErrors([]);
+    setShowErrors(false);
     try {
       const res = await fetch("/api/ingest", { method: "POST" });
       const summary = await res.json();
@@ -136,19 +140,27 @@ export function Board({ initialTasks, dateLabel }: Props) {
       const updated = summary.totalUpdated ?? 0;
       const removed = summary.totalRemoved ?? 0;
       const dedup = summary.totalSkipped ?? 0;
-      const errored = summary.adapters?.filter((a: { error?: string }) => a.error) ?? [];
+      const errored: Array<{ name: string; error: string }> = (summary.adapters ?? [])
+        .filter((a: { error?: string }) => a.error)
+        .map((a: { name: string; error: string }) => ({ name: a.name, error: a.error }));
       const disabled = summary.adapters?.filter((a: { ran: boolean }) => !a.ran) ?? [];
       const parts: string[] = [];
       if (created) parts.push(`${created} new`);
       if (updated) parts.push(`${updated} synced`);
       if (dedup) parts.push(`${dedup} dedup'd`);
       if (removed) parts.push(`${removed} removed`);
-      if (errored.length) parts.push(`${errored.length} errored`);
+      if (errored.length) parts.push(`${errored.map((e) => e.name).join(", ")} errored`);
       if (disabled.length) parts.push(`${disabled.length} disabled`);
       setLastResult(parts.length ? parts.join(" · ") : "no changes");
+      setLastErrors(errored);
+      // Auto-open the error panel if anything failed — don't make the user
+      // hunt for it.
+      if (errored.length > 0) setShowErrors(true);
       await refetchTasks();
     } catch (err) {
       setLastResult(`error: ${(err as Error).message}`);
+      setLastErrors([{ name: "client", error: (err as Error).message }]);
+      setShowErrors(true);
     } finally {
       setRefreshing(false);
     }
@@ -248,7 +260,19 @@ export function Board({ initialTasks, dateLabel }: Props) {
         <h1 className="text-2xl font-semibold tracking-tight">Now / Next / Later</h1>
         <div className="flex items-baseline gap-3">
           {lastResult ? (
-            <span className="text-xs text-neutral-500">{lastResult}</span>
+            <span className="flex items-center gap-1.5 text-xs text-neutral-500">
+              {lastResult}
+              {lastErrors.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowErrors((v) => !v)}
+                  className="rounded-sm border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950 dark:text-red-300 dark:hover:bg-red-900/60"
+                  aria-expanded={showErrors}
+                >
+                  {showErrors ? "hide" : "details"}
+                </button>
+              ) : null}
+            </span>
           ) : null}
           <button
             onClick={refresh}
@@ -266,6 +290,16 @@ export function Board({ initialTasks, dateLabel }: Props) {
           <p className="text-sm text-neutral-500">{dateLabel}</p>
         </div>
       </header>
+      {lastErrors.length > 0 && showErrors ? (
+        <ul className="mb-4 space-y-1 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          {lastErrors.map((e, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="font-semibold capitalize shrink-0">{e.name}:</span>
+              <span className="font-mono whitespace-pre-wrap break-all">{e.error}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {/* Tab strip: keep this outside the conditional so the header of the
           page doesn't jump when switching views. */}
       <div className="mb-4 flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800">
