@@ -1,6 +1,6 @@
 import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
 import { extractActionItems, isMine } from "@/lib/granola-extract";
-import { dedupSemantically } from "@/lib/action-dedup";
+import { dedupHeuristically } from "@/lib/action-dedup-heuristic";
 
 /**
  * Granola adapter.
@@ -140,10 +140,12 @@ export const granolaAdapter: Adapter = {
       }
     }
 
-    // Cross-note dedup: if the user's set ANTHROPIC_API_KEY, group items
-    // that mean the same thing so they land on the board once instead of
-    // three times. Pass-through if no key.
-    const deduped = await dedupSemantically(items);
+    // Cross-note dedup: free, self-contained heuristic (alias expansion,
+    // action-verb clustering, proper-noun boost, Jaccard on residual
+    // tokens). Catches common rewrites like i18n ↔ internationalization
+    // and "talk to Ron" ↔ "reach out to Ron" without any API keys or
+    // network calls. See lib/action-dedup-heuristic.ts.
+    const deduped = dedupHeuristically(items);
     // If dedup merged items, retire the individual externalIds so we don't
     // leave the old un-merged tasks sitting around from a previous ingest.
     if (deduped.length < items.length) {
