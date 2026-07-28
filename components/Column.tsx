@@ -8,12 +8,32 @@ import { TaskCard } from "./TaskCard";
 interface BucketMeta {
   title: string;
   subtitle: string;
-  /** Subtle accent color used for the header underline + focus glow. */
+  /** Subtle accent color used for the header underline + icon color. */
   accent: {
     text: string;
     bar: string;
-    dot: string;
   };
+  /** Inline SVG icon rendered before the bucket title. */
+  icon: React.ReactNode;
+}
+
+function BucketIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {children}
+    </svg>
+  );
 }
 
 const LABELS: Record<Bucket, BucketMeta> = {
@@ -23,8 +43,13 @@ const LABELS: Record<Bucket, BucketMeta> = {
     accent: {
       text: "text-rose-600 dark:text-rose-400",
       bar: "bg-gradient-to-r from-rose-400/70 via-rose-400/20 to-transparent",
-      dot: "bg-rose-500",
     },
+    // Bolt — kinetic, immediate.
+    icon: (
+      <BucketIcon>
+        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" />
+      </BucketIcon>
+    ),
   },
   next: {
     title: "Next",
@@ -32,8 +57,14 @@ const LABELS: Record<Bucket, BucketMeta> = {
     accent: {
       text: "text-sky-600 dark:text-sky-400",
       bar: "bg-gradient-to-r from-sky-400/70 via-sky-400/20 to-transparent",
-      dot: "bg-sky-500",
     },
+    // Arrow-right — heading forward.
+    icon: (
+      <BucketIcon>
+        <path d="M5 12h14" />
+        <path d="m12 5 7 7-7 7" />
+      </BucketIcon>
+    ),
   },
   later: {
     title: "Later",
@@ -41,8 +72,13 @@ const LABELS: Record<Bucket, BucketMeta> = {
     accent: {
       text: "text-violet-600 dark:text-violet-400",
       bar: "bg-gradient-to-r from-violet-400/70 via-violet-400/20 to-transparent",
-      dot: "bg-violet-500",
     },
+    // Moon — distant / not right now.
+    icon: (
+      <BucketIcon>
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+      </BucketIcon>
+    ),
   },
 };
 
@@ -96,10 +132,12 @@ export function Column({ bucket, tasks, onCreate, onUpdate, onDelete, flashMerge
       }`}
     >
       <header className="mb-3">
-        <div className="flex items-baseline justify-between px-0.5">
-          <div className="flex items-baseline gap-2">
-            <span className={`h-2 w-2 rounded-full ${label.accent.dot} shadow-sm`} aria-hidden />
-            <h2 className={`text-base font-semibold tracking-tight ${label.accent.text}`}>{label.title}</h2>
+        <div className="flex items-center justify-between px-0.5">
+          <div className="flex items-center gap-2">
+            <span className={label.accent.text}>{label.icon}</span>
+            <h2 className={`text-base font-semibold tracking-tight ${label.accent.text}`}>
+              {label.title}
+            </h2>
             <p className="text-[11px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
               {label.subtitle}
             </p>

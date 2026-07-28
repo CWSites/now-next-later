@@ -56,7 +56,55 @@ function TabButton({
 }
 
 const BUTTON_STYLE =
-  "rounded-md border border-neutral-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm backdrop-blur transition-all hover:border-neutral-300 hover:bg-white hover:shadow disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-neutral-200 dark:hover:bg-neutral-900";
+  "inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm backdrop-blur transition-all hover:border-neutral-300 hover:bg-white hover:shadow disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-neutral-200 dark:hover:bg-neutral-900";
+
+function Icon({ path, className }: { path: React.ReactNode; className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      {path}
+    </svg>
+  );
+}
+
+const RefreshIcon = (
+  <Icon
+    path={
+      <>
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+        <path d="M16 16h5v5" />
+      </>
+    }
+  />
+);
+
+const GearIcon = (
+  <Icon
+    path={
+      <>
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    }
+  />
+);
+
+const CheckIcon = (
+  <Icon path={<path d="M20 6 9 17l-5-5" />} />
+);
 
 interface Props {
   initialTasks: Task[];
@@ -397,15 +445,40 @@ export function Board({ initialTasks, dateLabel }: Props) {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Now <span className="text-neutral-300 dark:text-neutral-700">/</span> Next{" "}
-            <span className="text-neutral-300 dark:text-neutral-700">/</span> Later
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500">{dateLabel}</p>
+      <header className="mb-4">
+        <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+          Now <span className="text-neutral-300 dark:text-neutral-700">/</span> Next{" "}
+          <span className="text-neutral-300 dark:text-neutral-700">/</span> Later
+        </h1>
+        <p className="mt-1 text-sm text-neutral-500">{dateLabel}</p>
+      </header>
+      {lastErrors.length > 0 && showErrors ? (
+        <ul className="mb-4 space-y-1 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          {lastErrors.map((e, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="font-semibold capitalize shrink-0">{e.name}:</span>
+              <span className="font-mono whitespace-pre-wrap break-all">{e.error}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {/* Tab strip with inline actions on the right — keeps chrome compact
+          and puts view-switching + tools in the same visual row. */}
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800">
+        <div className="flex items-center gap-1">
+          <TabButton active={view === "board"} onClick={() => setView("board")}>
+            Board
+          </TabButton>
+          <TabButton active={view === "done"} onClick={() => setView("done")}>
+            Completed
+            {recentlyDone.today.length + recentlyDone.earlierThisWeek.length > 0 ? (
+              <span className="ml-1.5 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                {recentlyDone.today.length + recentlyDone.earlierThisWeek.length}
+              </span>
+            ) : null}
+          </TabButton>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pb-2">
           {lastResult ? (
             <span className="flex items-center gap-1.5 text-xs text-neutral-500">
               {lastResult}
@@ -421,51 +494,27 @@ export function Board({ initialTasks, dateLabel }: Props) {
               ) : null}
             </span>
           ) : null}
-          <button onClick={refresh} disabled={refreshing} className={BUTTON_STYLE}>
-            {refreshing ? "Refreshing…" : "↻ Refresh"}
-          </button>
           {(() => {
             const archivable = tasks.filter((t) => t.completed && !t.archived).length;
             if (archivable === 0) return null;
             return (
               <button
                 onClick={archiveAllCompleted}
-                title="Hide completed tasks from the board now (they stay in Recently Completed and un-check to bring them back)"
+                title="Hide completed tasks from the board now (they stay in Completed and un-check to bring them back)"
                 className={BUTTON_STYLE}
               >
-                ✓ Archive {archivable}
+                {CheckIcon} Archive {archivable}
               </button>
             );
           })()}
+          <button onClick={refresh} disabled={refreshing} className={BUTTON_STYLE}>
+            <span className={refreshing ? "animate-spin" : ""}>{RefreshIcon}</span>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
           <a href="/settings" className={BUTTON_STYLE}>
-            ⚙ Settings
+            {GearIcon} Settings
           </a>
         </div>
-      </header>
-      {lastErrors.length > 0 && showErrors ? (
-        <ul className="mb-4 space-y-1 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-          {lastErrors.map((e, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="font-semibold capitalize shrink-0">{e.name}:</span>
-              <span className="font-mono whitespace-pre-wrap break-all">{e.error}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {/* Tab strip: keep this outside the conditional so the header of the
-          page doesn't jump when switching views. */}
-      <div className="mb-4 flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800">
-        <TabButton active={view === "board"} onClick={() => setView("board")}>
-          Board
-        </TabButton>
-        <TabButton active={view === "done"} onClick={() => setView("done")}>
-          Recently completed
-          {recentlyDone.today.length + recentlyDone.earlierThisWeek.length > 0 ? (
-            <span className="ml-1.5 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-              {recentlyDone.today.length + recentlyDone.earlierThisWeek.length}
-            </span>
-          ) : null}
-        </TabButton>
       </div>
 
       {/* Board view is hidden (not unmounted) when on the done tab so the
