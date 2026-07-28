@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { Task } from "@/lib/types";
 import { describeUrl } from "@/lib/describe-url";
 
@@ -11,9 +11,7 @@ interface Props {
 }
 
 export function RecentlyDone({ today, earlierThisWeek, onUncomplete }: Props) {
-  const [showWeek, setShowWeek] = useState(false);
   const total = today.length + earlierThisWeek.length;
-
   const earlierByDay = useMemo(() => groupByDay(earlierThisWeek), [earlierThisWeek]);
 
   if (total === 0) {
@@ -28,63 +26,70 @@ export function RecentlyDone({ today, earlierThisWeek, onUncomplete }: Props) {
   }
 
   return (
-    <section className="rounded-xl border border-neutral-200/80 bg-white/80 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/60">
-      <header className="mb-4 flex items-baseline justify-between">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight">Recently completed</h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
-            <span className="tabular-nums font-medium">{today.length}</span> today ·{" "}
-            <span className="tabular-nums font-medium">{earlierThisWeek.length}</span> earlier this week
-          </p>
-        </div>
-        {earlierThisWeek.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setShowWeek((v) => !v)}
-            className="text-xs text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200"
-          >
-            {showWeek ? "hide this week" : "show this week"}
-          </button>
-        ) : null}
-      </header>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <DoneSection
+        title="Today"
+        subtitle={countLabel(today.length)}
+        emptyMessage="Nothing done today yet."
+        onUncomplete={onUncomplete}
+      >
+        {today.map((t) => (
+          <DoneItem key={t.id} task={t} onUncomplete={onUncomplete} />
+        ))}
+      </DoneSection>
 
-      {today.length > 0 ? (
-        <div>
-          <h3 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Today
-          </h3>
-          <ul className="space-y-1">
-            {today.map((t) => (
-              <DoneItem key={t.id} task={t} showDay={false} onUncomplete={onUncomplete} />
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {showWeek && earlierThisWeek.length > 0 ? (
-        <div className={today.length > 0 ? "mt-4" : ""}>
-          <h3 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Earlier this week
-          </h3>
-          {Object.entries(earlierByDay).map(([day, items]) => (
-            <div key={day} className="mb-2">
-              <div className="text-[11px] text-neutral-500">{day}</div>
-              <ul className="space-y-1">
-                {items.map((t) => (
-                  <DoneItem key={t.id} task={t} showDay={false} onUncomplete={onUncomplete} />
-                ))}
-              </ul>
+      <DoneSection
+        title="This week"
+        subtitle={countLabel(earlierThisWeek.length)}
+        emptyMessage="Nothing else finished this week."
+        onUncomplete={onUncomplete}
+      >
+        {Object.entries(earlierByDay).map(([day, items]) => (
+          <div key={day} className="space-y-1">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+              {day}
             </div>
-          ))}
-        </div>
-      ) : null}
+            <ul className="space-y-1">
+              {items.map((t) => (
+                <DoneItem key={t.id} task={t} onUncomplete={onUncomplete} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </DoneSection>
+    </div>
+  );
+}
+
+interface SectionProps {
+  title: string;
+  subtitle: string;
+  emptyMessage: string;
+  onUncomplete?: (id: string) => void;
+  children: React.ReactNode;
+}
+
+function DoneSection({ title, subtitle, emptyMessage, children }: SectionProps) {
+  const isEmpty = !children || (Array.isArray(children) && children.filter(Boolean).length === 0);
+  return (
+    <section className="flex flex-col rounded-xl border border-neutral-200/80 bg-white/80 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/60">
+      <header className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+        <span className="text-xs text-neutral-500">{subtitle}</span>
+      </header>
+      {isEmpty ? (
+        <p className="rounded-md border border-dashed border-neutral-200 py-6 text-center text-xs italic text-neutral-400 dark:border-neutral-800">
+          {emptyMessage}
+        </p>
+      ) : (
+        <div className="space-y-3">{children}</div>
+      )}
     </section>
   );
 }
 
 interface ItemProps {
   task: Task;
-  showDay: boolean;
   onUncomplete?: (id: string) => void;
 }
 
@@ -101,8 +106,8 @@ function DoneItem({ task, onUncomplete }: ItemProps) {
         title="Uncheck to move this task back to its column"
         className="mt-1 h-3.5 w-3.5 shrink-0 cursor-pointer accent-neutral-400"
       />
-      <span className="text-neutral-500 line-through">{task.title}</span>
-      <span className="ml-auto shrink-0 text-[11px] text-neutral-400">
+      <span className="flex-1 truncate text-neutral-500 line-through">{task.title}</span>
+      <span className="shrink-0 text-[11px] text-neutral-400">
         {bucket} · {time}
       </span>
       {task.url ? (
@@ -117,6 +122,10 @@ function DoneItem({ task, onUncomplete }: ItemProps) {
       ) : null}
     </li>
   );
+}
+
+function countLabel(n: number): string {
+  return `${n} ${n === 1 ? "task" : "tasks"}`;
 }
 
 function groupByDay(tasks: Task[]): Record<string, Task[]> {
