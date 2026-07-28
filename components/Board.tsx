@@ -30,6 +30,7 @@ import { Column } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { RecentlyDone } from "./RecentlyDone";
 import { IcalDate } from "./IcalDate";
+import { Logo } from "./Logo";
 import { groupRecentlyCompleted, isArchivedForToday } from "@/lib/completions";
 
 function TabButton({
@@ -109,10 +110,9 @@ const CheckIcon = (
 
 interface Props {
   initialTasks: Task[];
-  dateLabel: string;
 }
 
-export function Board({ initialTasks, dateLabel }: Props) {
+export function Board({ initialTasks }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -447,12 +447,12 @@ export function Board({ initialTasks, dateLabel }: Props) {
       onDragEnd={onDragEnd}
     >
       <header className="mb-4 flex items-center justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-3">
+          <Logo size={40} />
           <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
             Now <span className="text-neutral-300 dark:text-neutral-700">/</span> Next{" "}
             <span className="text-neutral-300 dark:text-neutral-700">/</span> Later
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">{dateLabel}</p>
         </div>
         <IcalDate />
       </header>

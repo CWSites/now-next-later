@@ -5,14 +5,9 @@ import { ensurePulled } from "@/lib/git-sync";
 export default async function Page() {
   await ensurePulled(REPO_ROOT);
   const tasks = await getAllTasks();
-  const dateLabel = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
   return (
     <main className="mx-auto max-w-7xl p-6">
-      <Board initialTasks={tasks} dateLabel={dateLabel} />
+      <Board initialTasks={tasks} />
     </main>
   );
 }
