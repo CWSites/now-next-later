@@ -1,6 +1,7 @@
 import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
 import { extractActionItems } from "@/lib/granola-extract";
 import { dedupHeuristically } from "@/lib/action-dedup-heuristic";
+import { getAllTasks } from "@/lib/storage";
 
 /**
  * Granola adapter.
@@ -68,6 +69,20 @@ export const granolaAdapter: Adapter = {
       .filter(Boolean);
     const configuredEmail = (process.env.GRANOLA_ME_EMAIL ?? "").trim().toLowerCase();
 
+    // Pre-load existing granola action tasks so we can purge stale ones
+    // (from notes we've decided to skip this run, either because the user
+    // wasn't a real attendee or because the ownership was ambiguous).
+    const existingTasks = await getAllTasks();
+    const existingActionsByNote = new Map<string, string[]>();
+    for (const t of existingTasks) {
+      const eid = t.externalId ?? "";
+      const m = eid.match(/^granola:action:([^:]+):/);
+      if (!m) continue;
+      const arr = existingActionsByNote.get(m[1]) ?? [];
+      arr.push(eid);
+      existingActionsByNote.set(m[1], arr);
+    }
+
     // 1) list recent notes
     const listRes = await fetch(`${API}/notes?limit=50`, {
       headers: { authorization: `Bearer ${token}`, accept: "application/json" },
@@ -101,11 +116,19 @@ export const granolaAdapter: Adapter = {
     const items: IngestItem[] = [];
     const removedExternalIds: string[] = [];
 
+    // Helper: when we skip a note entirely, retire everything it ever
+    // spawned so ghosts from previous ingests don't linger.
+    const retireNote = (noteId: string) => {
+      removedExternalIds.push(`granola:note:${noteId}`);
+      const prior = existingActionsByNote.get(noteId) ?? [];
+      for (const eid of prior) removedExternalIds.push(eid);
+    };
+
     for (const meta of recent) {
       const title = meta.title ?? "(untitled note)";
       const lowerTitle = title.toLowerCase();
       if (skipTitles.some((s) => lowerTitle.includes(s))) {
-        removedExternalIds.push(`granola:note:${meta.id}`);
+        retireNote(meta.id);
         continue;
       }
 
@@ -121,14 +144,20 @@ export const granolaAdapter: Adapter = {
         continue;
       }
 
-      // Retire the old fallback task regardless of what we decide below.
-      removedExternalIds.push(`granola:note:${meta.id}`);
-
       // Correctness gate: I must have actually been in this meeting.
+      // Retire the note (fallback + any prior action tasks) either way —
+      // if I skip it, nothing from it should linger on the board.
       const attendees = full.attendees ?? [];
       const isOwner = (full.owner?.email ?? "").toLowerCase() === meEmail;
       const isAttendee = attendees.some((a) => (a.email ?? "").toLowerCase() === meEmail);
-      if (!isOwner && !isAttendee) continue;
+      if (!isOwner && !isAttendee) {
+        retireNote(meta.id);
+        continue;
+      }
+      // Just retire the fallback — we'll upsert fresh action tasks below
+      // and those either match previous externalIds (updated in place) or
+      // are new.
+      removedExternalIds.push(`granola:note:${meta.id}`);
 
       const md = full.summary_markdown ?? full.summary_text ?? "";
       if (!md) continue;
@@ -144,7 +173,22 @@ export const granolaAdapter: Adapter = {
       });
 
       const mine = actions.filter((a) => attributedToMe(a.owner, meEmail, meFirstName, firstNameCollision));
-      if (mine.length === 0) continue;
+      if (mine.length === 0) {
+        // Nothing attributable to me from this note — retire any prior
+        // action tasks that WERE attributed to me in an earlier run.
+        const prior = existingActionsByNote.get(meta.id) ?? [];
+        for (const eid of prior) removedExternalIds.push(eid);
+        continue;
+      }
+
+      // Also purge any prior action tasks from this note whose slug isn't
+      // in the new set (item was edited out of the note, or ownership
+      // rules now exclude it).
+      const newSlugs = new Set(mine.map((a) => `granola:action:${meta.id}:${a.slug}`));
+      const prior = existingActionsByNote.get(meta.id) ?? [];
+      for (const eid of prior) {
+        if (!newSlugs.has(eid)) removedExternalIds.push(eid);
+      }
 
       const noteTitle = full.title ?? title;
       const dateLabel = full.calendar_event?.scheduled_start_time
