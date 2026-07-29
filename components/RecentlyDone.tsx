@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import type { Task } from "@/lib/types";
 import { describeUrl } from "@/lib/describe-url";
+import { iconForTask } from "@/lib/task-icon";
+import { ProviderIcon } from "@/components/ProviderIcon";
 
 interface Props {
   today: Task[];
@@ -111,14 +113,28 @@ function DoneItem({ task, onUncomplete }: ItemProps) {
         {bucket} · {time}
       </span>
       {task.url ? (
-        <a
-          href={task.url}
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 text-[11px] text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500"
-        >
-          {task.sourceRef ?? describeUrl(task.url)}
-        </a>
+        <span className="flex shrink-0 items-center gap-1">
+          {(() => {
+            const icon = iconForTask(task);
+            return icon ? (
+              <ProviderIcon
+                id={icon.id}
+                emoji={icon.emoji}
+                label={icon.label}
+                size={12}
+                className="opacity-70"
+              />
+            ) : null;
+          })()}
+          <a
+            href={task.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500"
+          >
+            {task.sourceRef ?? describeUrl(task.url)}
+          </a>
+        </span>
       ) : null}
     </li>
   );

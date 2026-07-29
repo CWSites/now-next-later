@@ -1,6 +1,8 @@
 "use client";
 
 import { describeUrl } from "@/lib/describe-url";
+import { iconForTask } from "@/lib/task-icon";
+import { ProviderIcon } from "@/components/ProviderIcon";
 
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
@@ -85,23 +87,37 @@ export function TaskCard({ task, dragging, justMerged, onToggle, onEdit, onDelet
             {task.title}
           </div>
           {task.sourceRef || task.url ? (
-            <div className="mt-0.5 truncate text-[11px] text-neutral-500">
-              {task.url ? (
-                <a
-                  href={task.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500 dark:decoration-neutral-700"
-                >
-                  {/* Fall back to a compact host+path when there's no
-                      human-friendly sourceRef (manually-added tasks). */}
-                  {task.sourceRef ?? describeUrl(task.url)}
-                </a>
-              ) : (
-                task.sourceRef
-              )}
+            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-neutral-500">
+              {(() => {
+                const icon = iconForTask(task);
+                return icon ? (
+                  <ProviderIcon
+                    id={icon.id}
+                    emoji={icon.emoji}
+                    label={icon.label}
+                    size={12}
+                    className="shrink-0 opacity-80"
+                  />
+                ) : null;
+              })()}
+              <span className="truncate">
+                {task.url ? (
+                  <a
+                    href={task.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500 dark:decoration-neutral-700"
+                  >
+                    {/* Fall back to a compact host+path when there's no
+                        human-friendly sourceRef (manually-added tasks). */}
+                    {task.sourceRef ?? describeUrl(task.url)}
+                  </a>
+                ) : (
+                  task.sourceRef
+                )}
+              </span>
             </div>
           ) : null}
         </div>
