@@ -21,7 +21,11 @@ async function main() {
   const raw = await fs.readFile(DATA_FILE, "utf8");
   const file = JSON.parse(raw) as TasksFile;
 
-  const jiraBase = process.env.JIRA_URL?.replace(/\/+$/, "") ?? "https://example.atlassian.net";
+  const jiraBase = process.env.JIRA_URL?.replace(/\/+$/, "");
+  if (!jiraBase) {
+    console.error("JIRA_URL is not set. Add it to .env.local before running the backfill.");
+    process.exit(1);
+  }
 
   let updated = 0;
   const changes: string[] = [];

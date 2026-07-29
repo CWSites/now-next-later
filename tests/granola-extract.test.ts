@@ -11,7 +11,7 @@ describe("extractActionItems", () => {
   it("finds bold-prefixed bullets under 'Next Steps'", () => {
     const md = `### Next Steps
 
-- **Do the thing** (Alex)
+- **Do the thing** (Dave)
 
   Longer description here.
 
@@ -21,7 +21,7 @@ describe("extractActionItems", () => {
 `;
     const items = extractActionItems(md);
     expect(items).toHaveLength(3);
-    expect(items[0]).toMatchObject({ title: "Do the thing", owner: "Alex" });
+    expect(items[0]).toMatchObject({ title: "Do the thing", owner: "Dave" });
     expect(items[0].detail).toContain("Longer description");
     expect(items[1].owner).toBe("Alice");
     expect(items[2].owner).toBeUndefined();
@@ -61,14 +61,14 @@ describe("extractActionItems", () => {
   });
 
   it("falls back to plain-text bullets when there's no bold prefix", () => {
-    const md = `## Action Items\n\n- Send Carol the memo\n- Call Ron about vendor options\n`;
+    const md = `## Action Items\n\n- Send Carol the memo\n- Call Frank about vendor options\n`;
     const items = extractActionItems(md);
     expect(items).toHaveLength(2);
     expect(items[0].title).toBe("Send Carol the memo");
   });
 
   it("produces stable slugs so re-runs don't duplicate", () => {
-    const md = "### Next Steps\n\n- **Send memo to Eve** (Alex)\n";
+    const md = "### Next Steps\n\n- **Send memo to Eve** (Dave)\n";
     const a = extractActionItems(md);
     const b = extractActionItems(md);
     expect(a[0].slug).toBe(b[0].slug);
@@ -77,11 +77,11 @@ describe("extractActionItems", () => {
 
 describe("isMine", () => {
   it("keeps unowned items", () => {
-    expect(isMine({ title: "x", slug: "x" }, ["Alex"])).toBe(true);
+    expect(isMine({ title: "x", slug: "x" }, ["Dave"])).toBe(true);
   });
 
   it("keeps items owned by me (first-name match)", () => {
-    expect(isMine({ title: "x", slug: "x", owner: "Alex" }, ["Alex", "Doe"])).toBe(true);
+    expect(isMine({ title: "x", slug: "x", owner: "Dave" }, ["Dave", "Doe"])).toBe(true);
   });
 
   it("keeps items owned by me (full-name match)", () => {
@@ -89,7 +89,7 @@ describe("isMine", () => {
   });
 
   it("drops items owned by someone else", () => {
-    expect(isMine({ title: "x", slug: "x", owner: "Alice" }, ["Alex"])).toBe(false);
+    expect(isMine({ title: "x", slug: "x", owner: "Alice" }, ["Dave"])).toBe(false);
   });
 
   it("is case-insensitive on the name comparison", () => {

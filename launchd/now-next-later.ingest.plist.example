@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Runs `npm run ingest` every weekday at 8:05 AM so the board is fresh
-  right after the morning-brief skill runs.
+  each morning.
 
-  Install:
-    cp launchd/com.example.now-next-later.ingest.plist ~/Library/LaunchAgents/
+  Before installing, replace the placeholders below:
+    - REPLACE_WITH_REPO_PATH  -> absolute path to this repo checkout
+    - REPLACE_WITH_LOG_DIR    -> absolute path to a writable log directory
+    - REPLACE_WITH_NPM_PATH   -> absolute path to your npm binary (e.g. /opt/homebrew/bin/npm)
+    - com.example.*           -> a label unique to you (reverse-DNS style)
+
+  Install (after edits):
+    cp launchd/now-next-later.ingest.plist.example ~/Library/LaunchAgents/com.example.now-next-later.ingest.plist
     launchctl load ~/Library/LaunchAgents/com.example.now-next-later.ingest.plist
 
   Uninstall:
     launchctl unload ~/Library/LaunchAgents/com.example.now-next-later.ingest.plist
     rm ~/Library/LaunchAgents/com.example.now-next-later.ingest.plist
-
-  Adjust the two paths below (WorkingDirectory + npm) for other machines.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -21,13 +25,13 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/npm</string>
+    <string>REPLACE_WITH_NPM_PATH</string>
     <string>run</string>
     <string>ingest</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/path/to/now-next-later</string>
+  <string>REPLACE_WITH_REPO_PATH</string>
 
   <key>StartCalendarInterval</key>
   <array>
@@ -39,9 +43,9 @@
   </array>
 
   <key>StandardOutPath</key>
-  <string>$HOME/Library/Logs/now-next-later-ingest.log</string>
+  <string>REPLACE_WITH_LOG_DIR/now-next-later-ingest.log</string>
   <key>StandardErrorPath</key>
-  <string>$HOME/Library/Logs/now-next-later-ingest.log</string>
+  <string>REPLACE_WITH_LOG_DIR/now-next-later-ingest.log</string>
 
   <key>EnvironmentVariables</key>
   <dict>

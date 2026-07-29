@@ -6,46 +6,38 @@ A local browser-based to-do app organized into three buckets:
 - **Next** — this week
 - **Later** — this month
 
-Tasks live in a plain JSON file (`data/tasks.json`) that is auto-committed and pushed to this git repo, so your list stays in sync across every machine that has the repo checked out. Claude Desktop can read and write tasks via an included MCP server.
+Tasks live in a plain local JSON file (`data/tasks.json`) that is **not** checked into this repo — your task list stays on your machine. Claude Desktop can read and write tasks via an included MCP server.
 
 ## Quick start
 
 ```bash
-git clone git@github.com:CWSites/now-next-later.git
+git clone <your-fork-or-this-repo>
 cd now-next-later
 npm install
 npm run dev
 # open http://localhost:3000
 ```
 
-## How sync works
+On first run the app creates `data/tasks.json` from an empty template. It is gitignored, so nothing about your task list ever ends up in a commit.
 
-- On page load and on first MCP call, the app runs `git pull --rebase --autostash`.
-- After every change (add / edit / complete / reorder / delete), changes to `data/tasks.json` are debounced (2s) and committed + pushed with a descriptive message.
-- If two machines edit simultaneously, `git pull --rebase` runs before every push. Conflicts on `data/tasks.json` are rare because each task is a self-contained JSON object; when they do happen, resolve manually and the app picks up the merged file on next load.
-- Toggle off with `GIT_SYNC_ENABLED=0` in `.env.local` (useful on planes).
+## Optional: sync your task list across machines via a private repo
 
-## Setting up on a new machine
+If you want your list to follow you between machines, point `DATA_REPO_PATH` at a **separate private git repo** you own. When set, the app will auto-commit and push changes to `data/tasks.json` in that repo (debounced 2s), and `git pull --rebase --autostash` on load. Leave `DATA_REPO_PATH` unset — the default — to keep everything local.
 
-1. `git clone` the repo.
-2. `npm install`
-3. Make sure `git push` works without a prompt (SSH key or credential helper).
-4. `npm run dev`
-
-That's it. Your tasks are already there.
+- Toggle off with `GIT_SYNC_ENABLED=0` in `.env.local` (useful on planes, or if `DATA_REPO_PATH` isn't set).
 
 ## Claude Desktop integration (MCP)
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (replace `/absolute/path/to/now-next-later` with your checkout path):
 
 ```json
 {
   "mcpServers": {
     "now-next-later": {
       "command": "npx",
-      "args": ["tsx", "/path/to/now-next-later/mcp/server.ts"],
+      "args": ["tsx", "/absolute/path/to/now-next-later/mcp/server.ts"],
       "env": {
-        "DATA_REPO_PATH": "/path/to/now-next-later"
+        "DATA_REPO_PATH": "/absolute/path/to/now-next-later"
       }
     }
   }
@@ -75,7 +67,7 @@ Because the MCP server and the web UI share the same JSON file, changes made by 
 
 ## Importing the morning brief
 
-The [`morning-brief` skill](file://$HOME/Documents/Claude/Scheduled/morning-brief/SKILL.md) writes an HTML artifact to `~/Documents/Claude/Artifacts/morning-brief/index.html` each weekday. Import its Today / This Week / This Month checklists into Now / Next / Later:
+If you use the `morning-brief` Claude skill (which writes an HTML artifact to `~/Documents/Claude/Artifacts/morning-brief/index.html`), you can import its Today / This Week / This Month checklists into Now / Next / Later:
 
 ```bash
 npm run import:brief             # imports new items, skips already-imported ones
@@ -99,4 +91,4 @@ GIT_SYNC_DEBOUNCE_MS=2000  # debounce window before commit+push
 
 ## Roadmap
 
-See open [issues](https://github.com/CWSites/now-next-later/issues). Next up: [#1 auto-rollover buckets by date](https://github.com/CWSites/now-next-later/issues/1).
+See open issues on the upstream repo.

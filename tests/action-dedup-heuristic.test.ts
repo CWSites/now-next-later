@@ -10,7 +10,7 @@ import type { IngestItem } from "@/ingest/adapters/base";
  * These tests protect the specific dedup behaviors we've promised the user:
  *   1. i18n ↔ internationalization aliasing
  *   2. verb clustering (talk ↔ reach out ↔ ping)
- *   3. proper-noun boost (both mention "Ron")
+ *   3. proper-noun boost (both mention "Frank")
  *   4. calendar-date-suffix stripping
  *   5. "Prep for X" preferred over gcal-style titles
  *   6. cross-column merges (bucket doesn't affect similarity)
@@ -29,8 +29,8 @@ function item(overrides: Partial<IngestItem> & { title: string }): IngestItem {
 describe("similarity()", () => {
   it("clusters i18n and internationalization above threshold", () => {
     const s = similarity(
-      "Talk to Ron about internationalization vendor options",
-      "Reach out to Ron regarding i18n & l10n",
+      "Talk to Frank about internationalization vendor options",
+      "Reach out to Frank regarding i18n & l10n",
     );
     expect(s).toBeGreaterThanOrEqual(0.5);
   });
@@ -76,14 +76,14 @@ describe("similarity()", () => {
 describe("clusterHeuristically()", () => {
   it("groups semantically-equivalent items even from different sources", () => {
     const items = [
-      item({ title: "Talk to Ron about internationalization vendor options" }),
-      item({ title: "Reach out to Ron regarding i18n & l10n" }),
+      item({ title: "Talk to Frank about internationalization vendor options" }),
+      item({ title: "Reach out to Frank regarding i18n & l10n" }),
       item({ title: "Follow up with Alice on the API bug" }),
       item({ title: "DM Alice re: the API fix" }),
       item({ title: "Ship release notes" }),
     ];
     const clusters = clusterHeuristically(items);
-    // Expect: 3 clusters — {Ron, Ron}, {Alice, Alice}, {ship}
+    // Expect: 3 clusters — {Frank, Frank}, {Alice, Alice}, {ship}
     expect(clusters.length).toBe(3);
     const sizes = clusters.map((c) => c.length).sort();
     expect(sizes).toEqual([1, 2, 2]);

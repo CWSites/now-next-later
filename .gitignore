@@ -6,3 +6,6 @@ secrets.local.json
 .DS_Store
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Your task list is local-only. Ship data/tasks.example.json as a template.
+data/tasks.json
