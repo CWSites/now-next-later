@@ -29,9 +29,9 @@ const LOGO_FILES: Record<string, string> = {
   jira: "/logos/jira.svg",
   slack: "/logos/slack.svg",
   gcal: "/logos/gcal.svg",
-  granola: "/logos/granola.ico",
-  fellow: "/logos/fellow.ico",
-  lattice: "/logos/lattice.ico",
+  granola: "/logos/granola.svg",
+  fellow: "/logos/fellow.png",
+  lattice: "/logos/lattice.png",
 };
 
 export function ProviderIcon({ id, emoji, label, size = 20, className }: Props) {

@@ -45,12 +45,14 @@ interface FellowActionItem {
 }
 
 const ACTION_ITEM_TOOL_HINTS = [
-  "action_items",
-  "action-items",
-  "actionitems",
+  "get_action_items",
+  "getActionItems",
   "list_action_items",
   "list-action-items",
   "listActionItems",
+  "action_items",
+  "action-items",
+  "actionitems",
 ];
 
 export const fellowAdapter: Adapter = {
@@ -102,12 +104,15 @@ export const fellowAdapter: Adapter = {
         );
       }
 
-      // Call with a lenient argument set — Fellow will ignore keys it doesn't
-      // recognize. We ask for the caller's open items.
+      // Fellow's `get_action_items` MCP tool rejects unknown keyword args
+      // (assignee/completed/limit), so we call it with no arguments and
+      // filter client-side below. If a future version of the schema
+      // accepts filters, we can conditionally pass them based on the tool's
+      // inputSchema.
       const result = await session.callTool<
         | { action_items?: FellowActionItem[]; items?: FellowActionItem[]; data?: FellowActionItem[] }
         | FellowActionItem[]
-      >(toolName, { assignee: "me", completed: false, limit: 100 });
+      >(toolName, {});
 
       const items: FellowActionItem[] = Array.isArray(result)
         ? result
