@@ -29,6 +29,7 @@ const LOGO_FILES: Record<string, string> = {
   jira: "/logos/jira.svg",
   slack: "/logos/slack.svg",
   gcal: "/logos/gcal.svg",
+  gdoc: "/logos/gdoc.svg",
   granola: "/logos/granola.svg",
   fellow: "/logos/fellow.png",
   lattice: "/logos/lattice.png",

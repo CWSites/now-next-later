@@ -18,6 +18,9 @@ describe("iconForTask", () => {
     ).toBe("jira");
     expect(iconForTask({ url: "https://example.slack.com/archives/C1/p123" })?.id).toBe("slack");
     expect(iconForTask({ url: "https://calendar.google.com/event?id=x" })?.id).toBe("gcal");
+    expect(iconForTask({ url: "https://docs.google.com/document/d/xyz/edit" })?.id).toBe("gdoc");
+    expect(iconForTask({ url: "https://docs.google.com/spreadsheets/d/xyz" })?.id).toBe("gdoc");
+    expect(iconForTask({ url: "https://drive.google.com/file/d/xyz" })?.id).toBe("gdoc");
     expect(iconForTask({ url: "https://app.granola.ai/notes/123" })?.id).toBe("granola");
     expect(iconForTask({ url: "https://your-workspace.latticehq.com/1-1s" })?.id).toBe("lattice");
   });
@@ -26,6 +29,9 @@ describe("iconForTask", () => {
     expect(iconForTask({ source: "morning-brief", sourceRef: "In Jira PROJ-1" })?.id).toBe("jira");
     expect(iconForTask({ sourceRef: "Slack message" })?.id).toBe("slack");
     expect(iconForTask({ sourceRef: "Google Calendar invite" })?.id).toBe("gcal");
+    expect(iconForTask({ sourceRef: "In Google Doc" })?.id).toBe("gdoc");
+    expect(iconForTask({ sourceRef: "In Google Sheet" })?.id).toBe("gdoc");
+    expect(iconForTask({ sourceRef: "In Google Slides" })?.id).toBe("gdoc");
     expect(iconForTask({ sourceRef: "In Granola notes" })?.id).toBe("granola");
   });
 
