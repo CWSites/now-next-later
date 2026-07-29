@@ -20,6 +20,30 @@ npm run dev
 
 On first run the app creates `data/tasks.json` from an empty template. It is gitignored, so nothing about your task list ever ends up in a commit.
 
+## Secrets & PII pre-commit hook (recommended)
+
+This repo ships with a pre-commit hook that scans staged files for API tokens, PEM keys, and configurable personal terms before allowing a commit. To turn it on:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+That sets `core.hooksPath` to `.githooks/` and seeds a **local, never-committed** pattern file at `.git/pii-patterns.local`. Edit that file to add regex patterns for your name, email, employer, coworker names, internal codenames — anything you want the hook to block.
+
+Example block:
+
+```
+$ git commit -m "docs: fix typo"
+✗ Atlassian API token in notes.md
+    12:const t = "ATATT<snip real-token-shaped bytes here>";
+✗ Personal term (\bmyname\b) in notes.md
+    3:# Draft by MyName
+
+Commit blocked — staged files look like they contain secrets or personal information.
+```
+
+Bypass sparingly with `git commit --no-verify` or `SKIP_PII_CHECK=1 git commit …`. A GitHub Actions workflow (`.github/workflows/secrets-scan.yml`) runs [gitleaks](https://github.com/gitleaks/gitleaks) on every push and PR as a second line of defense in case the local hook is bypassed.
+
 ## Optional: sync your task list across machines via a private repo
 
 If you want your list to follow you between machines, point `DATA_REPO_PATH` at a **separate private git repo** you own. When set, the app will auto-commit and push changes to `data/tasks.json` in that repo (debounced 2s), and `git pull --rebase --autostash` on load. Leave `DATA_REPO_PATH` unset — the default — to keep everything local.

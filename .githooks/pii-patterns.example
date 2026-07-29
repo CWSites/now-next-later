@@ -1,0 +1,19 @@
+# Personal / PII pattern list used by .githooks/pre-commit.
+#
+# Copy this file to $(git rev-parse --git-dir)/pii-patterns.local — that
+# location is OUTSIDE the working tree and never committed. Add regex
+# patterns (grep -E, case-insensitive) that describe names, emails, org
+# handles, or internal codenames YOU want to keep out of commits.
+#
+# Format:
+#   • One pattern per line.
+#   • Blank lines and lines starting with '#' are ignored.
+#   • Use \b for word boundaries so "matt" doesn't also flag "matters".
+#
+# Example (uncomment + edit for your context):
+#
+# \byour-employer\b
+# \byour\.last\.name\b
+# \byour-first-name\b
+# @your-employer\.com
+# your-internal-codename

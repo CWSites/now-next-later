@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook: scan the staged diff for secrets and PII before allowing
+# the commit. No external tools required. Compatible with bash 3.2 (the
+# default on macOS) — do not use mapfile / [[ =~ ]] arrays / assoc arrays.
+#
+# Layers of protection:
+#   1. Generic secret-token patterns (API keys, PEM blocks, cloud creds).
+#      These are hard-coded here because they're universal.
+#   2. Optional personal-term list at .git/pii-patterns.local — one grep -E
+#      pattern per line, '#' for comments. Never committed. Populate on
+#      first install via `scripts/install-hooks.sh`.
+#
+# Fails CLOSED: any internal error also blocks the commit rather than
+# silently letting things through. Bypass explicitly with:
+#   git commit --no-verify
+#   SKIP_PII_CHECK=1 git commit …
+
+# Fail closed on any unexpected error.
+set -e
+trap 'echo "pre-commit: internal error (line $LINENO) — blocking commit. Investigate .githooks/pre-commit or bypass with --no-verify." >&2; exit 1' ERR
+
+if [ "${SKIP_PII_CHECK:-0}" = "1" ]; then
+  echo "pre-commit: SKIP_PII_CHECK=1 — skipping scan"
+  exit 0
+fi
+
+RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'; RESET=$'\033[0m'
+
+# Collect staged files (Added / Copied / Modified / Renamed).
+STAGED_LIST=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED_LIST" ] && exit 0
+
+# Files to skip (binary blobs, lockfiles, generated assets).
+SKIP_RE='(^|/)(package-lock\.json|yarn-lock\.yaml|yarn\.lock|pnpm-lock\.yaml)$|\.(min\.js|map|png|jpg|jpeg|gif|ico|webp|svg|woff2?|ttf|otf|eot|pdf|zip|gz|tgz|bz2|7z|mp4|mov|mp3|wav)$'
+
+# Generic secret patterns. Each: LABEL<TAB>REGEX. Payload-length anchors
+# keep false-positive rate near zero — prefix mentions like "xoxc-" in
+# validation code do not match, only "xoxc-<digits>-<digits>" style values.
+SECRET_PATTERNS_FILE=$(mktemp -t pii-secrets.XXXXXX)
+trap 'rm -f "$SECRET_PATTERNS_FILE" "$PERSONAL_TMP" 2>/dev/null; exit 1' EXIT
+cat > "$SECRET_PATTERNS_FILE" <<'EOF'
+Atlassian API token	ATATT[0-9A-Za-z_-]{10,}
+Slack browser session token (xoxc)	xoxc-[0-9]{5,}-[0-9]{5,}
+Slack browser session token (xoxd)	xoxd-[A-Za-z0-9/+=]{40,}
+Slack OAuth token	xox[bpar]-[0-9]{10,}-[0-9]{10,}-[A-Za-z0-9]{20,}
+GitHub token	gh[pousr]_[A-Za-z0-9]{36,}
+AWS access key ID	AKIA[0-9A-Z]{16}
+Google API key	AIza[0-9A-Za-z_-]{35}
+OpenAI API key	sk-[A-Za-z0-9]{40,}
+Anthropic API key	sk-ant-[A-Za-z0-9_-]{40,}
+JSON Web Token	eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}
+PEM private key	-----BEGIN( [A-Z]+)? PRIVATE KEY-----
+Assignment of long high-entropy secret	(api[_-]?key|secret|token|password|passwd|pwd)[^A-Za-z0-9]{1,4}[A-Za-z0-9/+=_-]{32,}
+EOF
+
+# Personal-term list — optional; lives outside the working tree.
+PERSONAL_FILE="$(git rev-parse --git-dir)/pii-patterns.local"
+PERSONAL_TMP=$(mktemp -t pii-personal.XXXXXX)
+if [ -r "$PERSONAL_FILE" ]; then
+  # Strip comments and blank lines.
+  grep -v -E '^[[:space:]]*(#|$)' "$PERSONAL_FILE" > "$PERSONAL_TMP" || true
+fi
+
+FAIL=0
+report() {
+  echo "${RED}✗ $1${RESET} in ${YELLOW}$2${RESET}"
+  echo "    $3"
+  FAIL=1
+}
+
+scan_content() {
+  local file="$1" content="$2"
+
+  # Secrets.
+  while IFS=$'\t' read -r label regex; do
+    [ -z "$label" ] && continue
+    hits=$(printf '%s\n' "$content" | grep -nE -e "$regex" | head -3 || true)
+    if [ -n "$hits" ]; then
+      while IFS= read -r line; do
+        [ -n "$line" ] && report "$label" "$file" "$line"
+      done <<< "$hits"
+    fi
+  done < "$SECRET_PATTERNS_FILE"
+
+  # Personal terms.
+  if [ -s "$PERSONAL_TMP" ]; then
+    while IFS= read -r regex; do
+      [ -z "$regex" ] && continue
+      hits=$(printf '%s\n' "$content" | grep -niE -e "$regex" | head -3 || true)
+      if [ -n "$hits" ]; then
+        while IFS= read -r line; do
+          [ -n "$line" ] && report "Personal term ($regex)" "$file" "$line"
+        done <<< "$hits"
+      fi
+    done < "$PERSONAL_TMP"
+  fi
+}
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if echo "$f" | grep -qE "$SKIP_RE"; then continue; fi
+
+  # Read the *staged* blob (index), not on-disk file — they can differ.
+  content=$(git show ":$f" 2>/dev/null || true)
+  [ -z "$content" ] && continue
+  scan_content "$f" "$content"
+done <<< "$STAGED_LIST"
+
+# Reset the EXIT trap now that we're about to make our own final decision.
+trap - EXIT
+rm -f "$SECRET_PATTERNS_FILE" "$PERSONAL_TMP" 2>/dev/null
+
+if [ "$FAIL" -ne 0 ]; then
+  cat <<EOF
+
+${RED}Commit blocked${RESET} — staged files look like they contain secrets or
+personal information.
+
+If this is a real leak:
+  • Move the value to .env.local or secrets.local.json (both gitignored).
+  • \`git reset HEAD <file>\` to unstage, edit, re-stage.
+
+If this is a false positive:
+  • Tune the pattern in .githooks/pre-commit (secret rules) or in
+    \$GIT_DIR/pii-patterns.local (personal terms).
+  • Bypass this hook for a single commit, sparingly:
+      SKIP_PII_CHECK=1 git commit …
+      git commit --no-verify …
+    Reviewers should push back on either — bypass leaves no audit trail.
+
+EOF
+  exit 1
+fi
+
+exit 0

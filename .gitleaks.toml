@@ -1,0 +1,26 @@
+# gitleaks configuration for now-next-later.
+#
+# Extends the built-in default ruleset (which covers dozens of common
+# API-token formats) with allowlist rules for the intentional token
+# prefixes that appear in this repo's *code* (validation strings,
+# bookmarklet source), not as actual leaked values.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist: prefix-only mentions in source code"
+paths = [
+  # Lockfiles never contain user secrets; they're noisy false-positive sources.
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+]
+
+# Exact strings we permit — these appear in source as validation prefixes,
+# UI copy, and bookmarklet templates, never as real tokens.
+regexes = [
+  '''"xoxc-"''',
+  '''"xoxd-"''',
+  '''xoxc- and xoxd-''',
+]
