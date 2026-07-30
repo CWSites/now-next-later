@@ -76,7 +76,12 @@ function resolveProviderId(task: Pick<Task, "source" | "sourceRef" | "url">): Pr
   if (task.sourceRef) {
     const s = task.sourceRef.toLowerCase();
     // Order matters: check specific-before-generic.
-    if (s.includes("google calendar") || s.includes("gcal") || s.includes("calendar invite"))
+    if (
+      s.includes("google calendar") ||
+      s.includes("gcal") ||
+      s.includes("calendar invite") ||
+      s.includes("on your calendar")
+    )
       return "gcal";
     if (
       s.includes("google doc") ||
@@ -105,7 +110,15 @@ function providerFromUrl(raw: string): ProviderId | null {
   }
   if (host.endsWith(".atlassian.net")) return "jira"; // includes Confluence hosts; Jira icon is close enough
   if (host === "app.slack.com" || host.endsWith(".slack.com")) return "slack";
-  if (host === "calendar.google.com" || host === "meet.google.com") return "gcal";
+  // Google Calendar links can appear as calendar.google.com/... or as
+  // www.google.com/calendar/event?eid=... depending on where they're
+  // generated. Meet links land here too since they're calendar-adjacent.
+  if (
+    host === "calendar.google.com" ||
+    host === "meet.google.com" ||
+    ((host === "www.google.com" || host === "google.com") && raw.includes("/calendar/"))
+  )
+    return "gcal";
   // Google Workspace document types — Docs/Sheets/Slides/Forms/Drive all
   // share one icon slot; the Docs SVG is close enough visually for the
   // 12px slot on task cards.

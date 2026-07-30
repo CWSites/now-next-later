@@ -18,6 +18,10 @@ describe("iconForTask", () => {
     ).toBe("jira");
     expect(iconForTask({ url: "https://example.slack.com/archives/C1/p123" })?.id).toBe("slack");
     expect(iconForTask({ url: "https://calendar.google.com/event?id=x" })?.id).toBe("gcal");
+    expect(iconForTask({ url: "https://www.google.com/calendar/event?eid=abc" })?.id).toBe(
+      "gcal",
+    );
+    expect(iconForTask({ url: "https://meet.google.com/xyz-abcd-efg" })?.id).toBe("gcal");
     expect(iconForTask({ url: "https://docs.google.com/document/d/xyz/edit" })?.id).toBe("gdoc");
     expect(iconForTask({ url: "https://docs.google.com/spreadsheets/d/xyz" })?.id).toBe("gdoc");
     expect(iconForTask({ url: "https://drive.google.com/file/d/xyz" })?.id).toBe("gdoc");
@@ -29,6 +33,7 @@ describe("iconForTask", () => {
     expect(iconForTask({ source: "morning-brief", sourceRef: "In Jira PROJ-1" })?.id).toBe("jira");
     expect(iconForTask({ sourceRef: "Slack message" })?.id).toBe("slack");
     expect(iconForTask({ sourceRef: "Google Calendar invite" })?.id).toBe("gcal");
+    expect(iconForTask({ sourceRef: "On your calendar today 10:30 AM" })?.id).toBe("gcal");
     expect(iconForTask({ sourceRef: "In Google Doc" })?.id).toBe("gdoc");
     expect(iconForTask({ sourceRef: "In Google Sheet" })?.id).toBe("gdoc");
     expect(iconForTask({ sourceRef: "In Google Slides" })?.id).toBe("gdoc");
