@@ -240,7 +240,7 @@ export function Column({
         ) : null}
       </form>
 
-      <ul className="flex flex-1 flex-col gap-1.5">
+      <ul className="flex flex-col gap-1.5">
         {tasks.map((task) => (
           <TaskCard
             key={task.id}
@@ -274,6 +274,11 @@ export function Column({
           flashMergedId={flashMergedId}
         />
       ) : null}
+      {/* Bottom spacer keeps the column visually anchored to its
+          min-height without forcing the main list to stretch — that
+          stretching is what previously pushed sub-sections to the
+          bottom of the column. */}
+      <div className="flex-1" aria-hidden />
     </section>
   );
 }
