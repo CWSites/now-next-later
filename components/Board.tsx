@@ -362,6 +362,42 @@ export function Board({ initialTasks }: Props) {
     return t?.bucket ?? null;
   }
 
+  /**
+   * A drop target is identified by (bucket, isBook). This lets Later split
+   * into two sections (main and reading list) while still living in the
+   * same underlying bucket. Any droppable id we recognize here maps to one
+   * of those sections; unrecognized ids return null and the drop is ignored.
+   *
+   *   "later-books"  → { bucket: "later", isBook: true }
+   *   "now" | "next" | "later" → { bucket, isBook: false }
+   *   task id → that task's own bucket + (category === "book") flag
+   */
+  type Section = { bucket: Bucket; isBook: boolean };
+  const BOOKS_ID = "later-books";
+
+  function findSection(id: string): Section | null {
+    if (id === BOOKS_ID) return { bucket: "later", isBook: true };
+    if ((BUCKETS as string[]).includes(id)) return { bucket: id as Bucket, isBook: false };
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return null;
+    return { bucket: t.bucket, isBook: t.category === "book" };
+  }
+
+  function sameSection(a: Section, b: Section): boolean {
+    return a.bucket === b.bucket && a.isBook === b.isBook;
+  }
+
+  /** Tasks that visually belong to a given section, in position order. */
+  function tasksInSection(list: Task[], section: Section): Task[] {
+    return list
+      .filter(
+        (t) =>
+          t.bucket === section.bucket &&
+          (section.isBook ? t.category === "book" : t.category !== "book"),
+      )
+      .sort((a, b) => a.position - b.position);
+  }
+
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
     // Read Shift from the activator event (pointerdown that started the drag).
@@ -394,54 +430,116 @@ export function Board({ initialTasks }: Props) {
       }
     }
 
-    const fromBucket = findBucket(activeIdStr);
-    const toBucket = findBucket(overIdStr);
-    if (!fromBucket || !toBucket) return;
+    const fromSection = findSection(activeIdStr);
+    const toSection = findSection(overIdStr);
+    if (!fromSection || !toSection) return;
+
+    // Ids used as bare drop containers (as opposed to a task card).
+    const containerIds = [...(BUCKETS as string[]), BOOKS_ID];
+    const overIsContainer = containerIds.includes(overIdStr);
 
     setTasks((prev) => {
       const activeTask = prev.find((t) => t.id === activeIdStr);
       if (!activeTask) return prev;
 
-      // Move within same bucket
-      if (fromBucket === toBucket) {
-        const bucketTasks = prev
-          .filter((t) => t.bucket === fromBucket)
-          .sort((a, b) => a.position - b.position);
-        const oldIndex = bucketTasks.findIndex((t) => t.id === activeIdStr);
-        const newIndex = bucketTasks.findIndex((t) => t.id === overIdStr);
+      const inSameSection = sameSection(fromSection, toSection);
+
+      if (inSameSection) {
+        // Reorder within one section (e.g. Later main, Later books, or Now).
+        // Positions are per-bucket integers, so we pass the whole bucket's
+        // ordering to persistOrder — the other section's relative order is
+        // preserved because they weren't moved.
+        const sectionTasks = tasksInSection(prev, fromSection);
+        const oldIndex = sectionTasks.findIndex((t) => t.id === activeIdStr);
+        const newIndex = sectionTasks.findIndex((t) => t.id === overIdStr);
         if (oldIndex === -1 || newIndex === -1) return prev;
-        const reordered = arrayMove(bucketTasks, oldIndex, newIndex);
-        const orderedIds = reordered.map((t) => t.id);
-        void persistOrder(fromBucket, orderedIds);
+        const reordered = arrayMove(sectionTasks, oldIndex, newIndex);
+        const reorderedIds = reordered.map((t) => t.id);
+
+        const otherSection: Section = { bucket: fromSection.bucket, isBook: !fromSection.isBook };
+        const otherIds = tasksInSection(prev, otherSection).map((t) => t.id);
+        // Books render below main visually; keep that in the persisted order.
+        const fullOrder = fromSection.isBook
+          ? [...otherIds, ...reorderedIds]
+          : [...reorderedIds, ...otherIds];
+        void persistOrder(fromSection.bucket, fullOrder);
+
         return prev.map((t) => {
-          if (t.bucket !== fromBucket) return t;
-          const idx = orderedIds.indexOf(t.id);
+          if (t.bucket !== fromSection.bucket) return t;
+          const idx = fullOrder.indexOf(t.id);
           return idx === -1 ? t : { ...t, position: idx };
         });
       }
 
-      // Cross-bucket move
-      const targetBucketTasks = prev
-        .filter((t) => t.bucket === toBucket)
-        .sort((a, b) => a.position - b.position);
-      const overIsBucket = (BUCKETS as string[]).includes(overIdStr);
-      const insertIndex = overIsBucket
-        ? targetBucketTasks.length
-        : Math.max(0, targetBucketTasks.findIndex((t) => t.id === overIdStr));
-      const newTargetOrder = [
-        ...targetBucketTasks.slice(0, insertIndex).map((t) => t.id),
+      // Cross-section move (across buckets, across categories, or both).
+      // 1. Build the new task with the correct bucket + category.
+      const nextCategory = toSection.isBook ? "book" : undefined;
+      const movedTask: Task = {
+        ...activeTask,
+        bucket: toSection.bucket,
+        category: nextCategory,
+      };
+
+      // 2. Insert into the target section at the drop index.
+      const targetSectionTasks = tasksInSection(prev, toSection);
+      const insertIndex = overIsContainer
+        ? targetSectionTasks.length
+        : Math.max(0, targetSectionTasks.findIndex((t) => t.id === overIdStr));
+      const newTargetIds = [
+        ...targetSectionTasks.slice(0, insertIndex).map((t) => t.id),
         activeIdStr,
-        ...targetBucketTasks.slice(insertIndex).map((t) => t.id),
+        ...targetSectionTasks.slice(insertIndex).map((t) => t.id),
       ];
-      void persistOrder(toBucket, newTargetOrder);
+
+      // 3. Merge with the target bucket's OTHER section to build the full
+      //    per-bucket order the server needs. Books always sort after main
+      //    to match the visual layout.
+      const otherInTarget: Section = { bucket: toSection.bucket, isBook: !toSection.isBook };
+      const otherIdsInTarget = tasksInSection(prev, otherInTarget)
+        .map((t) => t.id)
+        .filter((id) => id !== activeIdStr);
+      const fullTargetOrder = toSection.isBook
+        ? [...otherIdsInTarget, ...newTargetIds]
+        : [...newTargetIds, ...otherIdsInTarget];
+
+      void persistOrder(toSection.bucket, fullTargetOrder);
+
+      // If the source bucket differs from the target, the source bucket's
+      // positions also need to compact — dropping a task out of it leaves
+      // a hole. Rebuild + persist source bucket order too.
+      if (fromSection.bucket !== toSection.bucket) {
+        const sourceRemaining = prev
+          .filter((t) => t.bucket === fromSection.bucket && t.id !== activeIdStr)
+          .sort((a, b) => a.position - b.position)
+          .map((t) => t.id);
+        void persistOrder(fromSection.bucket, sourceRemaining);
+      }
+
+      // Also PATCH the moved task's category (persistOrder only touches
+      // position + bucket; category is a separate field). We do this in
+      // fire-and-forget style like the rest of Board's mutations.
+      if (activeTask.category !== nextCategory) {
+        void fetch(`/api/tasks/${activeIdStr}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ category: nextCategory ?? null }),
+        });
+      }
 
       return prev.map((t) => {
         if (t.id === activeIdStr) {
-          return { ...t, bucket: toBucket, position: newTargetOrder.indexOf(activeIdStr) };
+          return {
+            ...movedTask,
+            position: fullTargetOrder.indexOf(activeIdStr),
+          };
         }
-        if (t.bucket === toBucket) {
-          const idx = newTargetOrder.indexOf(t.id);
+        if (t.bucket === toSection.bucket) {
+          const idx = fullTargetOrder.indexOf(t.id);
           return idx === -1 ? t : { ...t, position: idx };
+        }
+        if (t.bucket === fromSection.bucket) {
+          // Source-bucket compaction (only matters when buckets differ).
+          return t;
         }
         return t;
       });

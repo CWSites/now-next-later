@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { Bucket, Task } from "@/lib/types";
 import { TaskCard } from "./TaskCard";
 
@@ -290,6 +291,12 @@ function Subsection({
     setDraft("");
   }
 
+  // Making the subsection its own droppable + SortableContext lets DnD
+  // treat it as a separate zone from the parent column's main list. Board's
+  // drag-end handler recognizes the id and updates the task's category
+  // accordingly.
+  const { setNodeRef, isOver } = useDroppable({ id });
+
   return (
     <div className="mt-4 border-t border-dashed border-neutral-200 pt-3 dark:border-neutral-800">
       <div className="mb-2 flex items-center justify-between px-0.5">
@@ -301,24 +308,39 @@ function Subsection({
           {tasks.filter((t) => !t.completed).length}
         </span>
       </div>
-      <ul id={id} className="flex flex-col gap-1.5">
-        {tasks.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            justMerged={flashMergedId === task.id}
-            onToggle={() => onUpdate(task.id, { completed: !task.completed })}
-            onEdit={(title) => onUpdate(task.id, { title })}
-            onDelete={() => onDelete(task.id)}
-            onToggleBook={onToggleBook ? () => onToggleBook(task) : undefined}
-          />
-        ))}
-        {tasks.length === 0 ? (
-          <li className="rounded-md border border-dashed border-neutral-200 py-4 text-center text-[11px] italic text-neutral-400 dark:border-neutral-800">
-            nothing here yet
-          </li>
-        ) : null}
-      </ul>
+      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <ul
+          ref={setNodeRef}
+          className={`flex flex-col gap-1.5 rounded-md p-0.5 transition-colors ${
+            isOver
+              ? "bg-violet-50/70 ring-1 ring-violet-300 dark:bg-violet-950/40 dark:ring-violet-800"
+              : ""
+          }`}
+        >
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              justMerged={flashMergedId === task.id}
+              onToggle={() => onUpdate(task.id, { completed: !task.completed })}
+              onEdit={(title) => onUpdate(task.id, { title })}
+              onDelete={() => onDelete(task.id)}
+              onToggleBook={onToggleBook ? () => onToggleBook(task) : undefined}
+            />
+          ))}
+          {tasks.length === 0 ? (
+            <li
+              className={`rounded-md border border-dashed py-4 text-center text-[11px] italic transition-colors ${
+                isOver
+                  ? "border-violet-400 text-violet-600 dark:border-violet-500 dark:text-violet-300"
+                  : "border-neutral-200 text-neutral-400 dark:border-neutral-800"
+              }`}
+            >
+              {isOver ? "drop to add to reading list" : "nothing here yet"}
+            </li>
+          ) : null}
+        </ul>
+      </SortableContext>
       <form onSubmit={submit} className="mt-2">
         <input
           value={draft}
