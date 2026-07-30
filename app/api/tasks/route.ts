@@ -16,6 +16,7 @@ const CreateSchema = z.object({
     .url("url must be a valid URL")
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  category: z.string().trim().max(50).optional(),
 });
 
 export async function GET() {

@@ -183,25 +183,37 @@ export function Board({ initialTasks }: Props) {
     };
   }, [activeId]);
 
-  async function createTask(title: string, bucket: Bucket, url?: string) {
+  async function createTask(
+    title: string,
+    bucket: Bucket,
+    url?: string,
+    category?: string,
+  ) {
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title, bucket, url }),
+      body: JSON.stringify({ title, bucket, url, category }),
     });
     if (!res.ok) return;
     const { task } = await res.json();
     setTasks((prev) => [...prev, task]);
   }
 
-  async function updateTask(id: string, patch: Partial<Task>) {
+  // `category` accepts `null` to explicitly clear the field on the server;
+  // Task's own type only permits string | undefined, so we widen the patch
+  // shape here rather than casting at every callsite.
+  type TaskPatch = Partial<Omit<Task, "category">> & { category?: string | null };
+
+  async function updateTask(id: string, patch: TaskPatch) {
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== id) return t;
-        const next: Task = { ...t, ...patch };
+        const next: Task = { ...t, ...patch, category: patch.category ?? undefined };
         // Mirror server: un-completing clears the archive flag so the task
         // returns to its column instead of staying hidden.
         if (patch.completed === false) next.archived = undefined;
+        // Clearing category (null) also clears it in local state.
+        if (patch.category === null) next.category = undefined;
         return next;
       }),
     );
@@ -525,23 +537,57 @@ export function Board({ initialTasks }: Props) {
           drag state, column refs, and any in-flight edits survive tab
           switches without a re-render blip. */}
       <div className={view === "board" ? "grid grid-cols-1 gap-4 md:grid-cols-3" : "hidden"}>
-        {BUCKETS.map((bucket) => (
-          <SortableContext
-            key={bucket}
-            id={bucket}
-            items={grouped[bucket].map((t) => t.id)}
-            strategy={mergeMode ? noShiftStrategy : verticalListSortingStrategy}
-          >
-            <Column
-              bucket={bucket}
-              tasks={grouped[bucket]}
-              onCreate={(title, url) => createTask(title, bucket, url)}
-              onUpdate={updateTask}
-              onDelete={deleteTask}
-              flashMergedId={flashMergedId}
-            />
-          </SortableContext>
-        ))}
+        {BUCKETS.map((bucket) => {
+          // Partition the Later column into normal tasks and the pinned
+          // Reading-list subsection. Other buckets ignore category.
+          const bucketTasks = grouped[bucket];
+          const isLater = bucket === "later";
+          const mainTasks = isLater
+            ? bucketTasks.filter((t) => t.category !== "book")
+            : bucketTasks;
+          const bookTasks = isLater
+            ? bucketTasks.filter((t) => t.category === "book")
+            : [];
+
+          return (
+            <SortableContext
+              key={bucket}
+              id={bucket}
+              items={mainTasks.map((t) => t.id)}
+              strategy={mergeMode ? noShiftStrategy : verticalListSortingStrategy}
+            >
+              <Column
+                bucket={bucket}
+                tasks={mainTasks}
+                onCreate={(title, url) => createTask(title, bucket, url)}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+                flashMergedId={flashMergedId}
+                onToggleBook={
+                  isLater
+                    ? (task) =>
+                        updateTask(task.id, {
+                          category: task.category === "book" ? null : "book",
+                        })
+                    : undefined
+                }
+                subsection={
+                  isLater
+                    ? {
+                        id: "later-books",
+                        label: "Reading list",
+                        emoji: "📚",
+                        inputPlaceholder: "Add a book…",
+                        tasks: bookTasks,
+                        onCreate: (title) =>
+                          createTask(title, bucket, undefined, "book"),
+                      }
+                    : undefined
+                }
+              />
+            </SortableContext>
+          );
+        })}
       </div>
       <DragOverlay>
         {activeTask ? <TaskCard task={activeTask} dragging /> : null}

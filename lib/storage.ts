@@ -61,6 +61,7 @@ export interface CreateTaskInput {
   sourceRef?: string;
   externalId?: string;
   url?: string;
+  category?: string;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -82,6 +83,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       sourceRef: input.sourceRef,
       externalId: input.externalId,
       url: input.url,
+      category: input.category?.trim() || undefined,
     };
     file.tasks.push(task);
     await writeFile(file, `add: ${task.title.slice(0, 60)}`);
@@ -96,6 +98,8 @@ export interface UpdateTaskInput {
   completed?: boolean;
   archived?: boolean;
   position?: number;
+  /** Pass `null` to clear the category. */
+  category?: string | null;
 }
 
 export async function updateTask(id: string, input: UpdateTaskInput): Promise<Task | null> {
@@ -124,6 +128,10 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
       task.position = nextPosition(file.tasks.filter((t) => t.id !== id), input.bucket!);
     }
     if (input.position !== undefined) task.position = input.position;
+    if (input.category !== undefined) {
+      const c = input.category?.trim();
+      task.category = c ? c : undefined;
+    }
     task.updatedAt = now;
 
     await writeFile(file, `update: ${task.title.slice(0, 60)}`);

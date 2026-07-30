@@ -9,6 +9,7 @@ const UpdateSchema = z.object({
   completed: z.boolean().optional(),
   archived: z.boolean().optional(),
   position: z.number().int().nonnegative().optional(),
+  category: z.string().trim().max(50).nullable().optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

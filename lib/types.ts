@@ -26,6 +26,12 @@ export interface Task {
   externalId?: string;
   /** Deep-link back to the origin (Jira issue, Slack message, calendar event, ...). */
   url?: string;
+  /** Optional sub-grouping within a bucket. Currently only 'book' is
+   *  meaningful (renders in a Reading-list subsection at the bottom of
+   *  the Later column), but the field is a freeform string so future
+   *  categories don't require a schema migration. Empty / undefined =
+   *  no sub-grouping. */
+  category?: string;
 }
 
 /**

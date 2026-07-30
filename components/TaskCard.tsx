@@ -16,9 +16,21 @@ interface Props {
   onToggle?: () => void;
   onEdit?: (title: string) => void;
   onDelete?: () => void;
+  /** When provided, renders a small book-toggle button that flips the
+   *  task's `category` between "book" and undefined. Only wired for the
+   *  Later column where the Reading-list subsection lives. */
+  onToggleBook?: () => void;
 }
 
-export function TaskCard({ task, dragging, justMerged, onToggle, onEdit, onDelete }: Props) {
+export function TaskCard({
+  task,
+  dragging,
+  justMerged,
+  onToggle,
+  onEdit,
+  onDelete,
+  onToggleBook,
+}: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
@@ -122,17 +134,43 @@ export function TaskCard({ task, dragging, justMerged, onToggle, onEdit, onDelet
           ) : null}
         </div>
       )}
-      {onDelete ? (
-        <button
-          type="button"
-          onClick={onDelete}
-          onPointerDown={(e) => e.stopPropagation()}
-          aria-label="Delete task"
-          className="opacity-0 transition-opacity group-hover:opacity-100 text-neutral-400 hover:text-red-500"
-        >
-          ✕
-        </button>
-      ) : null}
+      <div className="flex shrink-0 items-center gap-1.5">
+        {onToggleBook ? (
+          <button
+            type="button"
+            onClick={onToggleBook}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label={
+              task.category === "book"
+                ? "Remove from reading list"
+                : "Add to reading list"
+            }
+            title={
+              task.category === "book"
+                ? "Remove from reading list"
+                : "Move to reading list"
+            }
+            className={`transition-opacity ${
+              task.category === "book"
+                ? "opacity-80 hover:opacity-100 text-violet-500"
+                : "opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-violet-500"
+            }`}
+          >
+            📚
+          </button>
+        ) : null}
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label="Delete task"
+            className="opacity-0 transition-opacity group-hover:opacity-100 text-neutral-400 hover:text-red-500"
+          >
+            ✕
+          </button>
+        ) : null}
+      </div>
     </li>
   );
 }

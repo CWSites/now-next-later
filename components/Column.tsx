@@ -82,6 +82,19 @@ const LABELS: Record<Bucket, BucketMeta> = {
   },
 };
 
+interface SubsectionProps {
+  /** Unique droppable / SortableContext id, e.g. 'later-books'. */
+  id: string;
+  /** Header shown above the subsection tasks. */
+  label: string;
+  /** Optional emoji rendered before the label. */
+  emoji?: string;
+  /** Compact placeholder for the subsection's task input. */
+  inputPlaceholder: string;
+  tasks: Task[];
+  onCreate: (title: string) => void;
+}
+
 interface Props {
   bucket: Bucket;
   tasks: Task[];
@@ -90,9 +103,26 @@ interface Props {
   onDelete: (id: string) => void;
   /** When set to a task id, that card briefly flashes to confirm a merge. */
   flashMergedId?: string | null;
+  /** Optional pinned sub-section rendered at the bottom of the column
+   *  (currently used for the reading list under Later). Cards inside the
+   *  subsection reuse the same TaskCard so they behave identically apart
+   *  from where they render. */
+  subsection?: SubsectionProps;
+  /** When provided, main-list task cards render a book-toggle button that
+   *  flips the task's category between "book" and cleared. */
+  onToggleBook?: (task: Task) => void;
 }
 
-export function Column({ bucket, tasks, onCreate, onUpdate, onDelete, flashMergedId }: Props) {
+export function Column({
+  bucket,
+  tasks,
+  onCreate,
+  onUpdate,
+  onDelete,
+  flashMergedId,
+  subsection,
+  onToggleBook,
+}: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: bucket });
   const [draft, setDraft] = useState("");
   const [urlDraft, setUrlDraft] = useState("");
@@ -204,6 +234,7 @@ export function Column({ bucket, tasks, onCreate, onUpdate, onDelete, flashMerge
             onToggle={() => onUpdate(task.id, { completed: !task.completed })}
             onEdit={(title) => onUpdate(task.id, { title })}
             onDelete={() => onDelete(task.id)}
+            onToggleBook={onToggleBook ? () => onToggleBook(task) : undefined}
           />
         ))}
         {tasks.length === 0 ? (
@@ -218,6 +249,84 @@ export function Column({ bucket, tasks, onCreate, onUpdate, onDelete, flashMerge
           </li>
         ) : null}
       </ul>
+
+      {subsection ? (
+        <Subsection
+          {...subsection}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          onToggleBook={onToggleBook}
+          flashMergedId={flashMergedId}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function Subsection({
+  id,
+  label,
+  emoji,
+  inputPlaceholder,
+  tasks,
+  onCreate,
+  onUpdate,
+  onDelete,
+  onToggleBook,
+  flashMergedId,
+}: SubsectionProps & {
+  onUpdate: (id: string, patch: Partial<Task>) => void;
+  onDelete: (id: string) => void;
+  onToggleBook?: (task: Task) => void;
+  flashMergedId?: string | null;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const title = draft.trim();
+    if (!title) return;
+    onCreate(title);
+    setDraft("");
+  }
+
+  return (
+    <div className="mt-4 border-t border-dashed border-neutral-200 pt-3 dark:border-neutral-800">
+      <div className="mb-2 flex items-center justify-between px-0.5">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+          {emoji ? <span aria-hidden>{emoji}</span> : null}
+          <span>{label}</span>
+        </div>
+        <span className="tabular-nums text-[11px] text-neutral-400">
+          {tasks.filter((t) => !t.completed).length}
+        </span>
+      </div>
+      <ul id={id} className="flex flex-col gap-1.5">
+        {tasks.map((task) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            justMerged={flashMergedId === task.id}
+            onToggle={() => onUpdate(task.id, { completed: !task.completed })}
+            onEdit={(title) => onUpdate(task.id, { title })}
+            onDelete={() => onDelete(task.id)}
+            onToggleBook={onToggleBook ? () => onToggleBook(task) : undefined}
+          />
+        ))}
+        {tasks.length === 0 ? (
+          <li className="rounded-md border border-dashed border-neutral-200 py-4 text-center text-[11px] italic text-neutral-400 dark:border-neutral-800">
+            nothing here yet
+          </li>
+        ) : null}
+      </ul>
+      <form onSubmit={submit} className="mt-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={inputPlaceholder}
+          className="w-full rounded-md border border-neutral-200 bg-white/70 px-2.5 py-1.5 text-xs outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-950/70 dark:focus:bg-neutral-950"
+        />
+      </form>
+    </div>
   );
 }
