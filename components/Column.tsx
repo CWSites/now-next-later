@@ -90,10 +90,24 @@ interface SubsectionProps {
   label: string;
   /** Optional emoji rendered before the label. */
   emoji?: string;
-  /** Compact placeholder for the subsection's task input. */
-  inputPlaceholder: string;
+  /** Optional icon rendered before the label (takes precedence over emoji
+   *  when provided). Handy for Google/Jira/etc. brand marks. */
+  iconSrc?: string;
+  /** Compact placeholder for the subsection's task input. Ignored when
+   *  `showInput` is false. */
+  inputPlaceholder?: string;
   tasks: Task[];
-  onCreate: (title: string) => void;
+  /** Called when the section's input is submitted. Required when
+   *  `showInput` is true (the default). */
+  onCreate?: (title: string) => void;
+  /** Whether to render an adder input. Defaults to true. Set to false for
+   *  auto-populated sub-sections like 'Jira tickets' whose contents come
+   *  from ingest adapters. */
+  showInput?: boolean;
+  /** Optional Tailwind class fragment used for the hover-highlight ring
+   *  when a drag hovers this subsection (e.g. 'violet' for reading list,
+   *  'sky' for Jira). Falls back to a neutral highlight. */
+  highlight?: string;
 }
 
 interface Props {
@@ -268,9 +282,12 @@ function Subsection({
   id,
   label,
   emoji,
+  iconSrc,
   inputPlaceholder,
   tasks,
   onCreate,
+  showInput = true,
+  highlight,
   onUpdate,
   onDelete,
   onToggleBook,
@@ -286,10 +303,21 @@ function Subsection({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const title = draft.trim();
-    if (!title) return;
+    if (!title || !onCreate) return;
     onCreate(title);
     setDraft("");
   }
+
+  // Highlight classes: default violet (matches original Reading list use);
+  // callers can override via the `highlight` prop.
+  const hoverBg =
+    highlight === "sky"
+      ? "bg-sky-50/70 ring-1 ring-sky-300 dark:bg-sky-950/40 dark:ring-sky-800"
+      : "bg-violet-50/70 ring-1 ring-violet-300 dark:bg-violet-950/40 dark:ring-violet-800";
+  const emptyBorder =
+    highlight === "sky"
+      ? "border-sky-400 text-sky-600 dark:border-sky-500 dark:text-sky-300"
+      : "border-violet-400 text-violet-600 dark:border-violet-500 dark:text-violet-300";
 
   // Making the subsection its own droppable + SortableContext lets DnD
   // treat it as a separate zone from the parent column's main list. Board's
@@ -301,7 +329,12 @@ function Subsection({
     <div className="mt-4 border-t border-dashed border-neutral-200 pt-3 dark:border-neutral-800">
       <div className="mb-2 flex items-center justify-between px-0.5">
         <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-          {emoji ? <span aria-hidden>{emoji}</span> : null}
+          {iconSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={iconSrc} alt="" width={14} height={14} className="opacity-80" />
+          ) : emoji ? (
+            <span aria-hidden>{emoji}</span>
+          ) : null}
           <span>{label}</span>
         </div>
         <span className="tabular-nums text-[11px] text-neutral-400">
@@ -312,9 +345,7 @@ function Subsection({
         <ul
           ref={setNodeRef}
           className={`flex flex-col gap-1.5 rounded-md p-0.5 transition-colors ${
-            isOver
-              ? "bg-violet-50/70 ring-1 ring-violet-300 dark:bg-violet-950/40 dark:ring-violet-800"
-              : ""
+            isOver ? hoverBg : ""
           }`}
         >
           {tasks.map((task) => (
@@ -331,24 +362,24 @@ function Subsection({
           {tasks.length === 0 ? (
             <li
               className={`rounded-md border border-dashed py-4 text-center text-[11px] italic transition-colors ${
-                isOver
-                  ? "border-violet-400 text-violet-600 dark:border-violet-500 dark:text-violet-300"
-                  : "border-neutral-200 text-neutral-400 dark:border-neutral-800"
+                isOver ? emptyBorder : "border-neutral-200 text-neutral-400 dark:border-neutral-800"
               }`}
             >
-              {isOver ? "drop to add to reading list" : "nothing here yet"}
+              {isOver ? `drop to add to ${label.toLowerCase()}` : "nothing here yet"}
             </li>
           ) : null}
         </ul>
       </SortableContext>
-      <form onSubmit={submit} className="mt-2">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={inputPlaceholder}
-          className="w-full rounded-md border border-neutral-200 bg-white/70 px-2.5 py-1.5 text-xs outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-950/70 dark:focus:bg-neutral-950"
-        />
-      </form>
+      {showInput && inputPlaceholder ? (
+        <form onSubmit={submit} className="mt-2">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={inputPlaceholder}
+            className="w-full rounded-md border border-neutral-200 bg-white/70 px-2.5 py-1.5 text-xs outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-950/70 dark:focus:bg-neutral-950"
+          />
+        </form>
+      ) : null}
     </div>
   );
 }

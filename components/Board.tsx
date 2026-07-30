@@ -363,39 +363,71 @@ export function Board({ initialTasks }: Props) {
   }
 
   /**
-   * A drop target is identified by (bucket, isBook). This lets Later split
-   * into two sections (main and reading list) while still living in the
-   * same underlying bucket. Any droppable id we recognize here maps to one
-   * of those sections; unrecognized ids return null and the drop is ignored.
+   * A drop target is identified by (bucket, sub). This lets a bucket split
+   * into multiple visual sections while still using one underlying bucket.
+   * `sub` values:
+   *   undefined  → the main list for the bucket
+   *   "book"     → Reading list at the bottom of Later (user-mutable via
+   *              the `category` field)
+   *   "jira"     → Jira tickets at the bottom of Now (source-derived; the
+   *              user can't toggle a task into this section, it's populated
+   *              by the ingest adapter)
    *
-   *   "later-books"  → { bucket: "later", isBook: true }
-   *   "now" | "next" | "later" → { bucket, isBook: false }
-   *   task id → that task's own bucket + (category === "book") flag
+   * Recognized container ids:
+   *   "later-books"  → { bucket: "later", sub: "book" }
+   *   "now-jira"     → { bucket: "now",   sub: "jira" }
+   *   "now" | "next" | "later" → { bucket, sub: undefined }
+   * Task ids resolve to whichever section their fields imply.
    */
-  type Section = { bucket: Bucket; isBook: boolean };
+  type Sub = "book" | "jira" | undefined;
+  type Section = { bucket: Bucket; sub: Sub };
   const BOOKS_ID = "later-books";
+  const JIRA_ID = "now-jira";
+
+  function taskSub(t: Task): Sub {
+    if (t.category === "book") return "book";
+    if (t.bucket === "now" && t.source === "jira") return "jira";
+    return undefined;
+  }
 
   function findSection(id: string): Section | null {
-    if (id === BOOKS_ID) return { bucket: "later", isBook: true };
-    if ((BUCKETS as string[]).includes(id)) return { bucket: id as Bucket, isBook: false };
+    if (id === BOOKS_ID) return { bucket: "later", sub: "book" };
+    if (id === JIRA_ID) return { bucket: "now", sub: "jira" };
+    if ((BUCKETS as string[]).includes(id)) return { bucket: id as Bucket, sub: undefined };
     const t = tasks.find((x) => x.id === id);
     if (!t) return null;
-    return { bucket: t.bucket, isBook: t.category === "book" };
+    return { bucket: t.bucket, sub: taskSub(t) };
   }
 
   function sameSection(a: Section, b: Section): boolean {
-    return a.bucket === b.bucket && a.isBook === b.isBook;
+    return a.bucket === b.bucket && a.sub === b.sub;
   }
 
   /** Tasks that visually belong to a given section, in position order. */
   function tasksInSection(list: Task[], section: Section): Task[] {
     return list
-      .filter(
-        (t) =>
-          t.bucket === section.bucket &&
-          (section.isBook ? t.category === "book" : t.category !== "book"),
-      )
+      .filter((t) => t.bucket === section.bucket && taskSub(t) === section.sub)
       .sort((a, b) => a.position - b.position);
+  }
+
+  /** Canonical top-to-bottom visual order of sections within a bucket.
+   *  Main list first, then any bottom subsections. Used both for
+   *  rebuilding the per-bucket position order on reorder and for
+   *  cross-section drops. */
+  function orderedSectionsForBucket(bucket: Bucket): Section[] {
+    if (bucket === "now") {
+      return [
+        { bucket: "now", sub: undefined },
+        { bucket: "now", sub: "jira" },
+      ];
+    }
+    if (bucket === "later") {
+      return [
+        { bucket: "later", sub: undefined },
+        { bucket: "later", sub: "book" },
+      ];
+    }
+    return [{ bucket, sub: undefined }];
   }
 
   function onDragStart(e: DragStartEvent) {
@@ -445,10 +477,11 @@ export function Board({ initialTasks }: Props) {
       const inSameSection = sameSection(fromSection, toSection);
 
       if (inSameSection) {
-        // Reorder within one section (e.g. Later main, Later books, or Now).
-        // Positions are per-bucket integers, so we pass the whole bucket's
-        // ordering to persistOrder — the other section's relative order is
-        // preserved because they weren't moved.
+        // Reorder within one section (Later main, Later books, Now main,
+        // Now jira, or Next). Positions are per-bucket integers, so we
+        // rebuild the whole bucket's ordering in visual-section order and
+        // pass it to persistOrder — other sections' relative order is
+        // preserved because their contents weren't moved.
         const sectionTasks = tasksInSection(prev, fromSection);
         const oldIndex = sectionTasks.findIndex((t) => t.id === activeIdStr);
         const newIndex = sectionTasks.findIndex((t) => t.id === overIdStr);
@@ -456,12 +489,15 @@ export function Board({ initialTasks }: Props) {
         const reordered = arrayMove(sectionTasks, oldIndex, newIndex);
         const reorderedIds = reordered.map((t) => t.id);
 
-        const otherSection: Section = { bucket: fromSection.bucket, isBook: !fromSection.isBook };
-        const otherIds = tasksInSection(prev, otherSection).map((t) => t.id);
-        // Books render below main visually; keep that in the persisted order.
-        const fullOrder = fromSection.isBook
-          ? [...otherIds, ...reorderedIds]
-          : [...reorderedIds, ...otherIds];
+        const bucketOrderedSections: Section[] = orderedSectionsForBucket(fromSection.bucket);
+        const fullOrder: string[] = [];
+        for (const s of bucketOrderedSections) {
+          if (sameSection(s, fromSection)) {
+            fullOrder.push(...reorderedIds);
+          } else {
+            fullOrder.push(...tasksInSection(prev, s).map((t) => t.id));
+          }
+        }
         void persistOrder(fromSection.bucket, fullOrder);
 
         return prev.map((t) => {
@@ -472,8 +508,14 @@ export function Board({ initialTasks }: Props) {
       }
 
       // Cross-section move (across buckets, across categories, or both).
-      // 1. Build the new task with the correct bucket + category.
-      const nextCategory = toSection.isBook ? "book" : undefined;
+      // 1. Build the new task with the correct bucket + category. Book
+      //    membership is user-controlled via `category`; Jira membership is
+      //    source-derived and immutable here — so dropping into the Jira
+      //    subsection is treated the same as dropping into the Now bucket,
+      //    and the task's actual final section on re-render is decided by
+      //    its unchanged source field.
+      const nextCategory =
+        toSection.sub === "book" ? "book" : toSection.sub === undefined ? undefined : activeTask.category;
       const movedTask: Task = {
         ...activeTask,
         bucket: toSection.bucket,
@@ -491,16 +533,23 @@ export function Board({ initialTasks }: Props) {
         ...targetSectionTasks.slice(insertIndex).map((t) => t.id),
       ];
 
-      // 3. Merge with the target bucket's OTHER section to build the full
-      //    per-bucket order the server needs. Books always sort after main
-      //    to match the visual layout.
-      const otherInTarget: Section = { bucket: toSection.bucket, isBook: !toSection.isBook };
-      const otherIdsInTarget = tasksInSection(prev, otherInTarget)
-        .map((t) => t.id)
-        .filter((id) => id !== activeIdStr);
-      const fullTargetOrder = toSection.isBook
-        ? [...otherIdsInTarget, ...newTargetIds]
-        : [...newTargetIds, ...otherIdsInTarget];
+      // 3. Rebuild the target bucket's ordering in visual-section order
+      //    (main first, then bottom subsections) and splice the moved
+      //    task into its target slot. Other sections keep their relative
+      //    order.
+      const targetOrderedSections: Section[] = orderedSectionsForBucket(toSection.bucket);
+      const fullTargetOrder: string[] = [];
+      for (const s of targetOrderedSections) {
+        if (sameSection(s, toSection)) {
+          fullTargetOrder.push(...newTargetIds);
+        } else {
+          fullTargetOrder.push(
+            ...tasksInSection(prev, s)
+              .map((t) => t.id)
+              .filter((id) => id !== activeIdStr),
+          );
+        }
+      }
 
       void persistOrder(toSection.bucket, fullTargetOrder);
 
@@ -636,16 +685,24 @@ export function Board({ initialTasks }: Props) {
           switches without a re-render blip. */}
       <div className={view === "board" ? "grid grid-cols-1 gap-4 md:grid-cols-3" : "hidden"}>
         {BUCKETS.map((bucket) => {
-          // Partition the Later column into normal tasks and the pinned
-          // Reading-list subsection. Other buckets ignore category.
+          // Partition columns into main + optional bottom subsections.
+          // Later has a user-controlled Reading list; Now auto-groups Jira
+          // tickets (source === 'jira') into a read-only section. Other
+          // buckets ignore both.
           const bucketTasks = grouped[bucket];
           const isLater = bucket === "later";
-          const mainTasks = isLater
-            ? bucketTasks.filter((t) => t.category !== "book")
-            : bucketTasks;
+          const isNow = bucket === "now";
           const bookTasks = isLater
             ? bucketTasks.filter((t) => t.category === "book")
             : [];
+          const jiraTasks = isNow
+            ? bucketTasks.filter((t) => t.category !== "book" && t.source === "jira")
+            : [];
+          const mainTasks = bucketTasks.filter((t) => {
+            if (isLater && t.category === "book") return false;
+            if (isNow && t.source === "jira") return false;
+            return true;
+          });
 
           return (
             <SortableContext
@@ -680,7 +737,16 @@ export function Board({ initialTasks }: Props) {
                         onCreate: (title) =>
                           createTask(title, bucket, undefined, "book"),
                       }
-                    : undefined
+                    : isNow && jiraTasks.length > 0
+                      ? {
+                          id: "now-jira",
+                          label: "Jira tickets",
+                          iconSrc: "/logos/jira.svg",
+                          tasks: jiraTasks,
+                          showInput: false,
+                          highlight: "sky",
+                        }
+                      : undefined
                 }
               />
             </SortableContext>
