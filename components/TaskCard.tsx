@@ -2,9 +2,10 @@
 
 import { describeUrl } from "@/lib/describe-url";
 import { iconForTask } from "@/lib/task-icon";
+import { decodeHtmlEntities } from "@/lib/decode-html";
 import { ProviderIcon } from "@/components/ProviderIcon";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Task } from "@/lib/types";
@@ -34,8 +35,25 @@ export function TaskCard({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
+  // Display uses the decoded title so raw entities from upstream (Lattice,
+  // Confluence excerpts, etc.) render as real characters. Storage keeps
+  // whatever came in; when the user opens the editor we pre-populate the
+  // draft with the decoded version so what they see is what they can edit.
+  const displayTitle = decodeHtmlEntities(task.title);
+
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(task.title);
+  const [draft, setDraft] = useState(displayTitle);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the textarea to fit its content so long titles are fully visible
+  // while editing. Runs on every draft change plus on open.
+  useLayoutEffect(() => {
+    if (!editing) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft, editing]);
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -43,11 +61,21 @@ export function TaskCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
+  function beginEdit() {
+    setDraft(displayTitle);
+    setEditing(true);
+  }
+
   function commitEdit() {
     const next = draft.trim();
     setEditing(false);
     if (next && next !== task.title) onEdit?.(next);
-    else setDraft(task.title);
+    else setDraft(displayTitle);
+  }
+
+  function cancelEdit() {
+    setDraft(displayTitle);
+    setEditing(false);
   }
 
   return (
@@ -76,27 +104,35 @@ export function TaskCard({
         className="mt-[3px] h-4 w-4 shrink-0 cursor-pointer rounded accent-blue-500"
       />
       {editing ? (
-        <input
+        <textarea
+          ref={textareaRef}
           autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={(e) => {
-            if (e.key === "Enter") commitEdit();
-            if (e.key === "Escape") {
-              setDraft(task.title);
-              setEditing(false);
+            // Enter commits, Shift+Enter inserts a newline, Escape cancels.
+            // Cmd/Ctrl+Enter also commits so muscle-memory from other apps
+            // that use it as "submit" works.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              commitEdit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              cancelEdit();
             }
           }}
-          className="flex-1 bg-transparent outline-none"
+          onPointerDown={(e) => e.stopPropagation()}
+          rows={1}
+          className="flex-1 min-w-0 resize-none overflow-hidden bg-transparent leading-snug outline-none"
         />
       ) : (
         <div className="flex-1 min-w-0">
           <div
-            onDoubleClick={() => setEditing(true)}
+            onDoubleClick={beginEdit}
             className={task.completed ? "text-neutral-400 line-through" : ""}
           >
-            {task.title}
+            {displayTitle}
           </div>
           {task.sourceRef || task.url ? (
             <div className="mt-0.5 flex items-center gap-1 text-[11px] text-neutral-500">
@@ -124,11 +160,13 @@ export function TaskCard({
                   >
                     {/* Fall back to a compact host+path when there's no
                         human-friendly sourceRef (manually-added tasks). */}
-                    {task.sourceRef ?? describeUrl(task.url)}
+                    {task.sourceRef
+                      ? decodeHtmlEntities(task.sourceRef)
+                      : describeUrl(task.url)}
                   </a>
-                ) : (
-                  task.sourceRef
-                )}
+                ) : task.sourceRef ? (
+                  decodeHtmlEntities(task.sourceRef)
+                ) : null}
               </span>
             </div>
           ) : null}

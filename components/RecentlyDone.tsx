@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { Task } from "@/lib/types";
 import { describeUrl } from "@/lib/describe-url";
 import { iconForTask } from "@/lib/task-icon";
+import { decodeHtmlEntities } from "@/lib/decode-html";
 import { ProviderIcon } from "@/components/ProviderIcon";
 
 interface Props {
@@ -108,7 +109,7 @@ function DoneItem({ task, onUncomplete }: ItemProps) {
         title="Uncheck to move this task back to its column"
         className="mt-1 h-3.5 w-3.5 shrink-0 cursor-pointer accent-neutral-400"
       />
-      <span className="flex-1 truncate text-neutral-500 line-through">{task.title}</span>
+      <span className="flex-1 truncate text-neutral-500 line-through">{decodeHtmlEntities(task.title)}</span>
       <span className="shrink-0 text-[11px] text-neutral-400">
         {bucket} · {time}
       </span>
@@ -132,7 +133,7 @@ function DoneItem({ task, onUncomplete }: ItemProps) {
             rel="noreferrer"
             className="text-[11px] text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-500"
           >
-            {task.sourceRef ?? describeUrl(task.url)}
+            {task.sourceRef ? decodeHtmlEntities(task.sourceRef) : describeUrl(task.url)}
           </a>
         </span>
       ) : null}

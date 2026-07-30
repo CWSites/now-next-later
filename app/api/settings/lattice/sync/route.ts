@@ -91,10 +91,15 @@ export async function POST(req: Request) {
     sourceRef?: string;
     url?: string;
   }[] = [];
+  const { decodeHtmlEntities } = await import("@/lib/decode-html");
   for (const raw of body.items) {
     if (!raw || typeof raw !== "object") continue;
     const externalId = String(raw.externalId ?? "").trim();
-    const title = String(raw.title ?? "").trim();
+    // Lattice's GraphQL payload delivers action-item text with HTML
+    // entities (`&amp;`, `&#39;`, `&gt;`, ...) still encoded. Decode at
+    // ingest so stored titles are clean going forward. Length check
+    // uses the *decoded* text since that's what the user sees.
+    const title = decodeHtmlEntities(String(raw.title ?? "").trim());
     if (!externalId.startsWith("lattice:action:") || !title) continue;
     if (externalId.length > 200 || title.length > 500) continue;
     const bucket = (VALID_BUCKETS as string[]).includes(raw.bucket ?? "")
@@ -104,7 +109,10 @@ export async function POST(req: Request) {
       externalId,
       title,
       bucket,
-      sourceRef: typeof raw.sourceRef === "string" ? raw.sourceRef.slice(0, 300) : undefined,
+      sourceRef:
+        typeof raw.sourceRef === "string"
+          ? decodeHtmlEntities(raw.sourceRef).slice(0, 300)
+          : undefined,
       url:
         typeof raw.url === "string" && /^https?:\/\//.test(raw.url)
           ? raw.url.slice(0, 500)
