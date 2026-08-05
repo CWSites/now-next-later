@@ -1,10 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   similarity,
   clusterHeuristically,
   dedupHeuristically,
 } from "@/lib/action-dedup-heuristic";
 import type { IngestItem } from "@/ingest/adapters/base";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 /**
  * These tests protect the specific dedup behaviors we've promised the user:
@@ -177,5 +180,66 @@ describe("dedupHeuristically()", () => {
     expect(merged[0].sourceRef).toContain("Merged from 2 notes");
     expect(merged[0].sourceRef).toContain("Granola");
     expect(merged[0].sourceRef).toContain("Slack");
+  });
+});
+
+describe("learned rules integration", () => {
+  let tmpDir: string;
+  let origEnv: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "dedup-heuristic-test-"));
+    await fs.mkdir(path.join(tmpDir, "data"), { recursive: true });
+    origEnv = process.env.DATA_REPO_PATH;
+    process.env.DATA_REPO_PATH = tmpDir;
+  });
+
+  afterEach(async () => {
+    if (origEnv === undefined) delete process.env.DATA_REPO_PATH;
+    else process.env.DATA_REPO_PATH = origEnv;
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("learned alias boosts similarity above threshold", async () => {
+    // Without the alias, "retro" and "retrospective" are different tokens
+    const before = similarity("schedule the retro", "schedule the retrospective");
+    expect(before).toBeLessThan(0.5);
+
+    await fs.writeFile(
+      path.join(tmpDir, "data/learned-dedup-rules.json"),
+      JSON.stringify({ version: 1, aliases: { retro: "retrospective" }, actionVerbs: [], mergeLog: [] }),
+    );
+
+    const after = similarity("schedule the retro", "schedule the retrospective");
+    expect(after).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it("learned action verb collapses like hardcoded ones", async () => {
+    // Short titles where the verb difference is the majority of the signal
+    const before = similarity("nudge Ron", "ping Ron");
+    expect(before).toBeLessThan(0.5);
+
+    await fs.writeFile(
+      path.join(tmpDir, "data/learned-dedup-rules.json"),
+      JSON.stringify({ version: 1, aliases: {}, actionVerbs: ["nudge"], mergeLog: [] }),
+    );
+
+    const after = similarity("nudge Ron", "ping Ron");
+    expect(after).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it("hardcoded aliases take precedence over learned ones", async () => {
+    // "i18n" is hardcoded as "internationalization". Learned rule tries to remap it.
+    await fs.writeFile(
+      path.join(tmpDir, "data/learned-dedup-rules.json"),
+      JSON.stringify({ version: 1, aliases: { i18n: "wrong-mapping" }, actionVerbs: [], mergeLog: [] }),
+    );
+
+    // Should still cluster because hardcoded "i18n → internationalization" wins
+    const s = similarity(
+      "i18n audit for checkout",
+      "internationalization audit for checkout",
+    );
+    expect(s).toBeGreaterThanOrEqual(0.7);
   });
 });

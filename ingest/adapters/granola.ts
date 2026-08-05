@@ -172,7 +172,7 @@ export const granolaAdapter: Adapter = {
         return normalizeFirstName(other) === normalizeFirstName(meFirstName);
       });
 
-      const mine = actions.filter((a) => attributedToMe(a.owner, meEmail, meFirstName, firstNameCollision));
+      const mine = actions.filter((a) => attributedToMe(a.owner, meEmail, meFirstName, firstNameCollision, attendees.length));
       if (mine.length === 0) {
         // Nothing attributable to me from this note — retire any prior
         // action tasks that WERE attributed to me in an earlier run.
@@ -257,7 +257,8 @@ function normalizeFirstName(name: string): string {
 /**
  * Decide whether an action item's owner tag refers to me.
  *
- *   - No tag                                 → treat as mine (unassigned).
+ *   - No tag, ≤2 attendees (1:1)            → treat as mine.
+ *   - No tag, 3+ attendees                  → NOT mine (too ambiguous).
  *   - Full name / email exact match          → mine.
  *   - First-name match, no collision in room → mine.
  *   - First-name match, another same-name    → NOT mine (ambiguous, skip
@@ -269,10 +270,10 @@ function attributedToMe(
   myEmail: string,
   myFirstName: string,
   collision: boolean,
+  attendeeCount: number,
 ): boolean {
-  if (!ownerTag) return true;
+  if (!ownerTag || !ownerTag.trim()) return attendeeCount <= 2;
   const tag = ownerTag.trim().toLowerCase();
-  if (!tag) return true;
   if (tag === myEmail) return true;
   const myFirst = normalizeFirstName(myFirstName);
   const tagFirst = normalizeFirstName(firstNameFromName(ownerTag));

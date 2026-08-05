@@ -25,6 +25,7 @@ import {
  * "don't apply any transform" so the list stays still.
  */
 const noShiftStrategy: SortingStrategy = () => null;
+import type { MergeSnapshot } from "@/lib/storage";
 import { BUCKETS, Bucket, Task } from "@/lib/types";
 import { Column } from "./Column";
 import { TaskCard } from "./TaskCard";
@@ -118,7 +119,7 @@ export function Board({ initialTasks }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [lastErrors, setLastErrors] = useState<Array<{ name: string; error: string }>>([]);
-  const [showErrors, setShowErrors] = useState(false);
+
   const [view, setView] = useState<"board" | "done">("board");
   // Tracks whether Shift is held during an active drag. When true, dropping
   // onto another task card merges the two instead of reordering.
@@ -127,6 +128,7 @@ export function Board({ initialTasks }: Props) {
   // (flashes for ~1.5s) plus a short toast describing the merge.
   const [flashMergedId, setFlashMergedId] = useState<string | null>(null);
   const [mergeToast, setMergeToast] = useState<string | null>(null);
+  const [lastMergeSnapshot, setLastMergeSnapshot] = useState<MergeSnapshot | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -287,21 +289,42 @@ export function Board({ initialTasks }: Props) {
       body: JSON.stringify({ sourceId, targetId }),
     });
     if (!res.ok) {
-      // Roll back by refetching truth. Also swap the toast to an error.
       setMergeToast(`⚠️ Merge failed — reverted`);
+      setLastMergeSnapshot(null);
       await refetchTasks();
+    } else {
+      const data = await res.json();
+      if (data.snapshot) setLastMergeSnapshot(data.snapshot);
     }
   }
 
   // Clear the flash + toast after a short window so they don't linger.
+  // Longer timeout when undo is available so the user has time to click.
   useEffect(() => {
     if (!flashMergedId && !mergeToast) return;
+    const delay = lastMergeSnapshot ? 5000 : 2200;
     const t = window.setTimeout(() => {
       setFlashMergedId(null);
       setMergeToast(null);
-    }, 2200);
+      setLastMergeSnapshot(null);
+    }, delay);
     return () => window.clearTimeout(t);
-  }, [flashMergedId, mergeToast]);
+  }, [flashMergedId, mergeToast, lastMergeSnapshot]);
+
+  async function undoMerge() {
+    if (!lastMergeSnapshot) return;
+    const snapshot = lastMergeSnapshot;
+    setLastMergeSnapshot(null);
+    setMergeToast(null);
+    const res = await fetch("/api/tasks/unmerge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ snapshot }),
+    });
+    if (res.ok) {
+      await refetchTasks();
+    }
+  }
 
   async function refetchTasks() {
     const res = await fetch("/api/tasks");
@@ -314,7 +337,7 @@ export function Board({ initialTasks }: Props) {
     setRefreshing(true);
     setLastResult(null);
     setLastErrors([]);
-    setShowErrors(false);
+    setLastErrors([]);
     try {
       const res = await fetch("/api/ingest", { method: "POST" });
       const summary = await res.json();
@@ -331,18 +354,15 @@ export function Board({ initialTasks }: Props) {
       if (updated) parts.push(`${updated} synced`);
       if (dedup) parts.push(`${dedup} dedup'd`);
       if (removed) parts.push(`${removed} removed`);
-      if (errored.length) parts.push(`${errored.map((e) => e.name).join(", ")} errored`);
+      // Errors are shown as a separate red chip, not in the main status text.
+      // (see errorChip in the render)
       if (disabled.length) parts.push(`${disabled.length} disabled`);
       setLastResult(parts.length ? parts.join(" · ") : "no changes");
       setLastErrors(errored);
-      // Auto-open the error panel if anything failed — don't make the user
-      // hunt for it.
-      if (errored.length > 0) setShowErrors(true);
       await refetchTasks();
     } catch (err) {
       setLastResult(`error: ${(err as Error).message}`);
       setLastErrors([{ name: "client", error: (err as Error).message }]);
-      setShowErrors(true);
     } finally {
       setRefreshing(false);
     }
@@ -615,16 +635,7 @@ export function Board({ initialTasks }: Props) {
         </div>
         <IcalDate />
       </header>
-      {lastErrors.length > 0 && showErrors ? (
-        <ul className="mb-4 space-y-1 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-          {lastErrors.map((e, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="font-semibold capitalize shrink-0">{e.name}:</span>
-              <span className="font-mono whitespace-pre-wrap break-all">{e.error}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {/* Error details removed — errors now show inline in the status bar */}
       {/* Tab strip with inline actions on the right — keeps chrome compact
           and puts view-switching + tools in the same visual row. */}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800">
@@ -642,17 +653,18 @@ export function Board({ initialTasks }: Props) {
           </TabButton>
         </div>
         <div className="flex items-center gap-2 pb-2">
-          {lastResult ? (
+          {lastResult || lastErrors.length > 0 ? (
             <span className="flex items-center gap-1.5 text-xs text-neutral-500">
               {lastResult}
               {lastErrors.length > 0 ? (
                 <button
                   type="button"
-                  onClick={() => setShowErrors((v) => !v)}
-                  className="rounded-sm border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950 dark:text-red-300 dark:hover:bg-red-900/60"
-                  aria-expanded={showErrors}
+                  onClick={() => { setLastErrors([]); setLastErrors([]); }}
+                  title={lastErrors.map((e) => `${e.name}: ${e.error}`).join("\n")}
+                  className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
                 >
-                  {showErrors ? "hide" : "details"}
+                  {lastErrors.map((e) => e.name).join(", ")} errored
+                  <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3l6 6M9 3l-6 6" /></svg>
                 </button>
               ) : null}
             </span>
@@ -773,13 +785,22 @@ export function Board({ initialTasks }: Props) {
         <div
           role="status"
           aria-live="polite"
-          className={`pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border px-3 py-1 text-xs shadow-lg backdrop-blur ${
+          className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border px-3 py-1 text-xs shadow-lg backdrop-blur flex items-center gap-2 ${
             mergeToast.startsWith("⚠")
               ? "border-red-400 bg-red-100/95 text-red-900 dark:border-red-500 dark:bg-red-950/85 dark:text-red-100"
               : "border-green-400 bg-green-100/95 text-green-900 dark:border-green-500 dark:bg-green-950/85 dark:text-green-100"
           }`}
         >
-          {mergeToast}
+          <span className="pointer-events-none">{mergeToast}</span>
+          {lastMergeSnapshot ? (
+            <button
+              type="button"
+              onClick={undoMerge}
+              className="rounded-full border border-green-500 bg-green-200/80 px-2 py-0.5 text-[10px] font-semibold text-green-800 hover:bg-green-300 dark:border-green-400 dark:bg-green-900/60 dark:text-green-200 dark:hover:bg-green-800/60"
+            >
+              Undo
+            </button>
+          ) : null}
         </div>
       ) : null}
       {view === "done" ? (

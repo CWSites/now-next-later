@@ -26,5 +26,5 @@ export async function POST(req: Request) {
       { status: result.reason === "not-found" ? 404 : 400 },
     );
   }
-  return NextResponse.json({ task: result.task });
+  return NextResponse.json({ task: result.task, snapshot: result.snapshot });
 }

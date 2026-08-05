@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Bucket, Task, TasksFile, Tombstone } from "./types";
 import { queueSync } from "./git-sync";
+import { recordMergeForLearning } from "./dedup-learner";
 
 const REPO_ROOT = process.env.DATA_REPO_PATH
   ? path.resolve(process.env.DATA_REPO_PATH)
@@ -211,16 +212,26 @@ export async function getTombstones(): Promise<Tombstone[]> {
  * source's externalId is tombstoned so its adapter doesn't resurrect it
  * on the next refresh.
  */
+export interface MergeSnapshot {
+  source: Task;
+  target: Task;
+}
+
 export async function mergeTasks(
   sourceId: string,
   targetId: string,
-): Promise<{ merged: boolean; reason?: string; task?: Task }> {
+): Promise<{ merged: boolean; reason?: string; task?: Task; snapshot?: MergeSnapshot }> {
   if (sourceId === targetId) return { merged: false, reason: "same-task" };
   return serialize(async () => {
     const file = await readFile();
     const source = file.tasks.find((t) => t.id === sourceId);
     const target = file.tasks.find((t) => t.id === targetId);
     if (!source || !target) return { merged: false, reason: "not-found" };
+
+    const snapshot: MergeSnapshot = {
+      source: structuredClone(source),
+      target: structuredClone(target),
+    };
 
     const now = new Date().toISOString();
 
@@ -264,11 +275,46 @@ export async function mergeTasks(
     // Remove source.
     file.tasks = file.tasks.filter((t) => t.id !== sourceId);
 
+    // Fire-and-forget: record this merge for dedup learning.
+    recordMergeForLearning(source.title, target.title).catch(() => {});
+
     await writeFile(
       file,
       `merge: ${source.title.slice(0, 40)} → ${target.title.slice(0, 40)}`,
     );
-    return { merged: true, task: target };
+    return { merged: true, task: target, snapshot };
+  });
+}
+
+export async function unmergeTasks(
+  snapshot: MergeSnapshot,
+): Promise<{ undone: boolean; reason?: string }> {
+  return serialize(async () => {
+    const file = await readFile();
+    const target = file.tasks.find((t) => t.id === snapshot.target.id);
+    if (!target) return { undone: false, reason: "target-not-found" };
+
+    // Restore target to its pre-merge state
+    Object.assign(target, snapshot.target);
+
+    // Re-insert source task at its original position
+    const alreadyExists = file.tasks.some((t) => t.id === snapshot.source.id);
+    if (!alreadyExists) {
+      file.tasks.push(snapshot.source);
+    }
+
+    // Remove tombstone for source's externalId if one was created
+    if (snapshot.source.externalId) {
+      file.tombstones = (file.tombstones ?? []).filter(
+        (t) => t.externalId !== snapshot.source.externalId,
+      );
+    }
+
+    await writeFile(
+      file,
+      `undo merge: ${snapshot.source.title.slice(0, 40)} ↔ ${snapshot.target.title.slice(0, 40)}`,
+    );
+    return { undone: true };
   });
 }
 

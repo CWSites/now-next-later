@@ -1,4 +1,6 @@
 import type { IngestItem } from "@/ingest/adapters/base";
+import { readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 /**
  * Heuristic deduplication — free, deterministic, no network calls.
@@ -16,7 +18,7 @@ import type { IngestItem } from "@/ingest/adapters/base";
  * cheaply on every ingest.
  */
 
-const ALIASES: Record<string, string> = {
+export const ALIASES: Record<string, string> = {
   // Internationalization / localization
   i18n: "internationalization",
   intl: "internationalization",
@@ -52,7 +54,7 @@ const ALIASES: Record<string, string> = {
   eoq: "end-of-quarter",
 };
 
-const STOPWORDS = new Set([
+export const STOPWORDS = new Set([
   "a","an","the","and","or","but","of","for","to","in","on","at","from","with","by","as",
   "about","regarding","re","around","concerning","via","into","upon","toward","towards",
   "my","me","i","you","your","we","us","our","they","them","their","he","she","him","her","his","hers",
@@ -77,7 +79,7 @@ const STOPWORDS = new Set([
   // meta-verbs handled below via ACTION_VERBS
 ]);
 
-const ACTION_VERBS = new Set([
+export const ACTION_VERBS = new Set([
   "talk","talks","talked","talking",
   "reach","reaches","reached","reaching","reachout",
   "ping","pings","pinged","pinging",
@@ -102,7 +104,7 @@ const ACTION_VERBS = new Set([
   "review","reviews","reviewed","reviewing",
 ]);
 
-const ACTION_MARKER = "__contact__";
+export const ACTION_MARKER = "__contact__";
 
 /**
  * Strip time/date suffixes commonly appended to calendar titles before we
@@ -119,8 +121,37 @@ function stripDateSuffix(text: string): string {
     .replace(/\s+\d{1,2}:\d{2}\s*(am|pm)?\s*$/i, "");
 }
 
+// --- Learned rules (file-based, mtime-cached) ---
+
+function rulesPath(): string {
+  return join(
+    process.env.DATA_REPO_PATH ? resolve(process.env.DATA_REPO_PATH) : process.cwd(),
+    "data",
+    "learned-dedup-rules.json",
+  );
+}
+
+let _rulesCache: { mtime: number; aliases: Record<string, string>; verbs: string[] } | null = null;
+
+function loadLearnedRules(): { aliases: Record<string, string>; verbs: string[] } | null {
+  try {
+    const p = rulesPath();
+    const s = statSync(p);
+    if (_rulesCache?.mtime === s.mtimeMs) return _rulesCache;
+    const raw = JSON.parse(readFileSync(p, "utf8"));
+    const result = { mtime: s.mtimeMs, aliases: raw.aliases ?? {}, verbs: raw.actionVerbs ?? [] };
+    _rulesCache = result;
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 /** Split into words, expand aliases, drop stopwords, collapse action verbs. */
-function normalize(text: string): { tokens: string[]; properNouns: Set<string> } {
+export function normalize(
+  text: string,
+  opts?: { skipLearnedRules?: boolean },
+): { tokens: string[]; properNouns: Set<string> } {
   text = stripDateSuffix(text);
   const properNouns = new Set<string>();
   // Grab capitalized single words as candidate proper nouns before lowercasing.
@@ -146,14 +177,20 @@ function normalize(text: string): { tokens: string[]; properNouns: Set<string> }
     }
   }
 
+  const learned = opts?.skipLearnedRules ? null : loadLearnedRules();
+  const effectiveAliases = learned ? { ...learned.aliases, ...ALIASES } : ALIASES;
+  const effectiveVerbs = learned?.verbs.length
+    ? new Set([...ACTION_VERBS, ...learned.verbs])
+    : ACTION_VERBS;
+
   const tokens = text
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
     .flatMap((w) => {
       if (STOPWORDS.has(w)) return [];
-      if (ACTION_VERBS.has(w)) return [ACTION_MARKER];
-      const alias = ALIASES[w];
+      if (effectiveVerbs.has(w)) return [ACTION_MARKER];
+      const alias = effectiveAliases[w];
       return alias ? [alias] : [w];
     });
 

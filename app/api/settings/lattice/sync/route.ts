@@ -14,11 +14,12 @@ const DUP_THRESHOLD = 0.5;
 function findSemanticDup(
   incoming: { title: string; externalId?: string },
   existing: Task[],
+  opts?: { includeCompleted?: boolean },
 ): Task | null {
   let best: { task: Task; score: number } | null = null;
   for (const t of existing) {
     if (t.externalId === incoming.externalId) continue;
-    if (t.completed) continue;
+    if (!opts?.includeCompleted && t.completed) continue;
     const score = similarity(t.title, incoming.title);
     if (score < DUP_THRESHOLD) continue;
     if (!best || score > best.score) best = { task: t, score };
@@ -133,12 +134,12 @@ export async function POST(req: Request) {
   for (const item of clean) {
     const alreadyLinked = preSync.some((t) => t.externalId === item.externalId);
     if (!alreadyLinked) {
-      const dup = findSemanticDup(item, preSync);
+      const dup = findSemanticDup(item, preSync, { includeCompleted: true });
       if (dup) {
-        // A live task already covers this commitment (typically a
-        // morning-brief seed or a task from another adapter). Skip the
-        // Lattice one so the user sees a single row — the existing one
-        // keeps its position, notes, and history.
+        // A task (live or completed) already covers this commitment.
+        // Including completed tasks prevents re-creating items the user
+        // already finished — Lattice recurring 1:1s often re-surface the
+        // same action item with a different externalId.
         skipped++;
         continue;
       }
@@ -163,12 +164,16 @@ export async function POST(req: Request) {
   // they've either been completed on Lattice's side or reassigned to
   // someone else. deleteByExternalId honors the checked-off guard, so a
   // task the user has already marked complete stays as history.
+  // Also skip items the user has re-categorized (e.g. moved to Reading
+  // List) — that's a signal they've claimed the task and it shouldn't
+  // be auto-removed just because Lattice no longer surfaces it.
   const existing = await getAllTasks();
   let removed = 0;
   for (const t of existing) {
     const eid = t.externalId ?? "";
     if (!eid.startsWith("lattice:action:")) continue;
     if (incomingIds.has(eid)) continue;
+    if (t.category) continue;
     const { deleted } = await deleteByExternalId(eid, { source: "lattice" });
     if (deleted) removed++;
   }
