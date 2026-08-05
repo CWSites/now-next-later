@@ -46,9 +46,19 @@ Bypass sparingly with `git commit --no-verify` or `SKIP_PII_CHECK=1 git commit �
 
 ## Optional: sync your task list across machines via a private repo
 
-If you want your list to follow you between machines, point `DATA_REPO_PATH` at a **separate private git repo** you own. When set, the app will auto-commit and push changes to `data/tasks.json` in that repo (debounced 2s), and `git pull --rebase --autostash` on load. Leave `DATA_REPO_PATH` unset — the default — to keep everything local.
+Sync is **off by default**. Fresh clones and forks will never auto-commit or push anywhere.
 
-- Toggle off with `GIT_SYNC_ENABLED=0` in `.env.local` (useful on planes, or if `DATA_REPO_PATH` isn't set).
+To turn it on, point `DATA_REPO_PATH` at a **separate private git repo you own** (not this repo, not a fork of this repo) and explicitly enable sync in `.env.local`:
+
+```
+DATA_REPO_PATH=/absolute/path/to/your/private/tasks-repo
+GIT_SYNC_ENABLED=1
+GIT_SYNC_DEBOUNCE_MS=2000
+```
+
+With those set, the app will `git pull --rebase --autostash` on load and auto-commit + push changes to `data/tasks.json` (debounced 2s) in the target repo. Unset either variable — or leave `GIT_SYNC_ENABLED` at its default — to keep everything local.
+
+There is also a CI check (`.github/workflows/no-sync-artifacts.yml`) that rejects any PR touching `data/tasks.json`, so an accidentally-configured fork can't open a PR containing personal task data against upstream.
 
 ## Claude Desktop integration (MCP)
 
@@ -89,17 +99,15 @@ Restart Claude Desktop. Then you can say things like:
 
 Because the MCP server and the web UI share the same JSON file, changes made by Claude appear on next page refresh (and vice versa).
 
-## Importing the morning brief
+## Optional: ingest adapters
 
-If you use the `morning-brief` Claude skill (which writes an HTML artifact to `~/Documents/Claude/Artifacts/morning-brief/index.html`), you can import its Today / This Week / This Month checklists into Now / Next / Later:
+The repo includes pluggable ingest adapters under `ingest/adapters/` (Fellow, Google Calendar, Granola, Jira, Slack) that can pull action items from external sources into your buckets:
 
 ```bash
-npm run import:brief             # imports new items, skips already-imported ones
-npm run import:brief -- --dry-run
-npm run import:brief -- --path /some/other/index.html
+npm run ingest
 ```
 
-Dedupe is per-title within tasks tagged `source: "morning-brief"`, so it's safe to re-run every morning. Existing tasks in your list keep their state (position, completion) even if the brief still mentions them.
+Each adapter reads credentials from `secrets.local.json` (gitignored) — see `ingest/adapters/*.ts` for the shape it expects. To run daily on macOS, copy `launchd/now-next-later.ingest.plist.example` to `~/Library/LaunchAgents/`, edit the placeholders inside, and `launchctl load` it. If you don't configure any adapter credentials, `npm run ingest` is a no-op.
 
 ## Keyboard shortcuts
 
@@ -108,11 +116,7 @@ Dedupe is per-title within tasks tagged `source: "morning-brief"`, so it's safe 
 ## Configuration (`.env.local`)
 
 ```
-DATA_REPO_PATH=            # defaults to app repo root
-GIT_SYNC_ENABLED=1         # set to 0 to disable sync
+DATA_REPO_PATH=            # unset = local-only (default); set to a private repo path to sync
+GIT_SYNC_ENABLED=0         # 1 to enable sync (also requires DATA_REPO_PATH); default off
 GIT_SYNC_DEBOUNCE_MS=2000  # debounce window before commit+push
 ```
-
-## Roadmap
-
-See open issues on the upstream repo.

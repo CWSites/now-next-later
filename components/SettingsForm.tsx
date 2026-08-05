@@ -153,19 +153,26 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
               </div>
               {result ? (
                 <span
-                  className={`shrink-0 text-xs ${
+                  aria-label={
                     result.ok
-                      ? "text-green-700 dark:text-green-400"
+                      ? `Connected: ${result.identity}${result.detail ? ` (${result.detail})` : ""}`
                       : result.configured
-                        ? "text-red-600 dark:text-red-400"
-                        : "text-neutral-500"
+                        ? `Failed: ${result.error ?? "unknown error"}`
+                        : "Not configured"
+                  }
+                  title={
+                    result.ok
+                      ? `${result.identity}${result.detail ? ` (${result.detail})` : ""}`
+                      : (result.error ?? "not configured")
+                  }
+                  className={`mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
+                    result.ok
+                      ? "bg-green-500"
+                      : result.configured
+                        ? "bg-red-500"
+                        : "bg-neutral-400 dark:bg-neutral-600"
                   }`}
-                >
-                  {result.ok ? "✅ " : result.configured ? "❌ " : "➖ "}
-                  {result.ok
-                    ? `${result.identity}${result.detail ? ` (${result.detail})` : ""}`
-                    : (result.error ?? "not configured")}
-                </span>
+                />
               ) : null}
             </header>
 

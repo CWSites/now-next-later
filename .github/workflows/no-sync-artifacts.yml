@@ -1,0 +1,35 @@
+name: no-sync-artifacts
+
+# Rejects PRs that contain personal task-sync artifacts. `data/tasks.json` and
+# related files are gitignored and intended to stay local — this guard catches
+# the case where a fork accidentally enables sync against upstream, or someone
+# removes the ignore entry by hand.
+
+on:
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail if PR touches local-only files
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD")
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          BLOCKED_RE='^(data/tasks\.json|data/learned-dedup-rules\.json|\.env\.local|secrets\.local\.json)$'
+          if echo "$CHANGED" | grep -E "$BLOCKED_RE" >/dev/null; then
+            echo ""
+            echo "::error::PR touches local-only sync/secret files. These must never be committed:"
+            echo "$CHANGED" | grep -E "$BLOCKED_RE"
+            exit 1
+          fi

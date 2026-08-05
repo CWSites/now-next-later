@@ -1,7 +1,11 @@
 import path from "node:path";
 import { simpleGit, type SimpleGit } from "simple-git";
 
-const ENABLED = process.env.GIT_SYNC_ENABLED !== "0";
+// Sync is opt-in. A fresh clone or fork will never auto-commit or push:
+// the user must explicitly point DATA_REPO_PATH at a repo they own AND
+// set GIT_SYNC_ENABLED=1 in their local env.
+const ENABLED =
+  process.env.GIT_SYNC_ENABLED === "1" && !!process.env.DATA_REPO_PATH;
 const DEBOUNCE_MS = Number(process.env.GIT_SYNC_DEBOUNCE_MS ?? "2000");
 
 interface Pending {
