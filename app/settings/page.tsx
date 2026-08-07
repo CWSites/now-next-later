@@ -18,7 +18,7 @@ export default async function SettingsPage({ searchParams }: Params) {
   const settings = await getSecretsView();
   const { gcal, fellow } = await searchParams;
   const h = await headers();
-  const host = h.get("host") ?? "localhost:3000";
+  const host = h.get("host") ?? "localhost:4823";
   const proto = h.get("x-forwarded-proto") ?? "http";
   const appOrigin = `${proto}://${host}`;
   const workspaceMatch = (process.env.SLACK_WORKSPACE_MATCH ?? "").trim();

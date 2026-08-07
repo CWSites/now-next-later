@@ -15,7 +15,7 @@ git clone <your-fork-or-this-repo>
 cd now-next-later
 npm install
 npm run dev
-# open http://localhost:3000
+# open http://localhost:4823
 ```
 
 On first run the app creates `data/tasks.json` from an empty template. It is gitignored, so nothing about your task list ever ends up in a commit.
@@ -108,6 +108,19 @@ npm run ingest
 ```
 
 Each adapter reads credentials from `secrets.local.json` (gitignored) — see `ingest/adapters/*.ts` for the shape it expects. To run daily on macOS, copy `launchd/now-next-later.ingest.plist.example` to `~/Library/LaunchAgents/`, edit the placeholders inside, and `launchctl load` it. If you don't configure any adapter credentials, `npm run ingest` is a no-op.
+
+### Google Calendar OAuth setup
+
+The Google Calendar adapter uses OAuth 2.0. To set up (or update) the client:
+
+1. Go to https://console.cloud.google.com/apis/credentials and select your project.
+2. Under **OAuth 2.0 Client IDs**, open the Web application client this app uses (or create one).
+3. Set **Authorized JavaScript origins** to `http://localhost:4823`.
+4. Set **Authorized redirect URIs** to `http://localhost:4823/api/settings/gcal/callback`.
+5. Save. Put the client ID and secret into `secrets.local.json` as `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+6. Start the dev server, visit `/settings`, and click **Connect Google Calendar** to run the flow. The refresh token is written back to `secrets.local.json` as `GOOGLE_REFRESH_TOKEN`.
+
+If you change the dev port, update the two URLs above in the Google Cloud Console to match.
 
 ## Keyboard shortcuts
 
