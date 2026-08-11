@@ -2,8 +2,11 @@
 
 /**
  * Generates a draggable bookmarklet the user can drop onto their bookmarks
- * bar. When clicked from any your workspace's Slack tab, it extracts the fresh
- * xoxc/xoxd pair and POSTs them to /api/settings/slack/import on this app.
+ * bar. When clicked from any of the workspace's Slack tabs, it extracts the
+ * fresh xoxc token from localStorage and POSTs it to
+ * /api/settings/slack/import on this app. The xoxd cookie is HttpOnly on
+ * app.slack.com so JavaScript cannot read it; the user pastes that once via
+ * the Slack xoxd cookie field above and the server reuses the stored value.
  */
 
 // The bookmarklet source. Kept as one expression so it survives being
@@ -17,11 +20,9 @@ const BOOKMARKLET_SRC = `(async()=>{try{
   const match=%%WORKSPACE_MATCH%%;
   const team=match?teams.find(t=>(t.domain||'').toLowerCase().includes(match)||(t.name||'').toLowerCase().includes(match)):teams[0];
   if(!team||!team.token){alert('No matching workspace found. Looking for: '+(match||'(any)')+'. Available: '+teams.map(t=>t.domain||t.name).join(', '));return;}
-  const dc=(document.cookie.split('; ').find(c=>c.startsWith('d='))||'').slice(2);
-  if(!dc){alert('No d cookie found on this page. Are you signed in?');return;}
-  const res=await fetch('%%APP_ORIGIN%%/api/settings/slack/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({xoxc:team.token,xoxd:decodeURIComponent(dc),workspace:team.domain||team.name})});
+  const res=await fetch('%%APP_ORIGIN%%/api/settings/slack/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({xoxc:team.token,workspace:team.domain||team.name})});
   const data=await res.json();
-  if(res.ok){alert('\u2705 Slack tokens saved. Authenticated as '+data.user+' (team: '+data.team+').');}
+  if(res.ok){alert('\u2705 Slack xoxc saved. Authenticated as '+data.user+' (team: '+data.team+').');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status)));}
 }catch(e){alert('Error: '+e.message);}})();`;
 
@@ -50,15 +51,21 @@ export function SlackBookmarklet({ appOrigin, workspaceMatch }: Props) {
     <div className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
       <div className="font-medium">Slack quick-refresh</div>
       <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
-        Slack rotates <code>xoxc</code>/<code>xoxd</code> tokens frequently. Drag the button below to
-        your bookmarks bar. Whenever you&apos;re signed into your workspace's Slack and connection tests fail,
-        just click the bookmarklet from any Slack tab &mdash; it grabs the fresh tokens and saves them
-        here in one click.
+        Slack rotates the <code>xoxc</code> token frequently. Drag the button below to your bookmarks
+        bar; whenever connection tests start failing, click it from any signed-in Slack tab and it will
+        grab the fresh <code>xoxc</code> and save it here.
       </p>
       <span dangerouslySetInnerHTML={{ __html: bookmarkAnchor }} />
       <p className="mt-2 text-xs text-neutral-500">
         Matches workspaces whose domain or name contains{" "}
         <code>{workspaceMatch || "(first team)"}</code>.
+      </p>
+      <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-400">
+        <strong>One-time xoxd setup:</strong> the <code>d</code> cookie is HttpOnly, so the bookmarklet
+        cannot read it. In Slack, open DevTools &rarr; Application &rarr; Cookies &rarr;
+        <code>https://app.slack.com</code>, copy the value of the <code>d</code> cookie, and paste it
+        into the <em>Slack xoxd cookie</em> field above (prefix with <code>xoxd-</code> if it isn&apos;t
+        already). <code>xoxd</code> rotates rarely, so you shouldn&apos;t need to redo this often.
       </p>
     </div>
   );

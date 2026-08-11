@@ -118,6 +118,9 @@ interface Props {
   onDelete: (id: string) => void;
   /** When set to a task id, that card briefly flashes to confirm a merge. */
   flashMergedId?: string | null;
+  /** Ids of tasks that arrived in the most recent refresh and should render
+   *  with a "just arrived" highlight until the ~5min window expires. */
+  justArrivedIds?: Set<string>;
   /** Optional pinned sub-section rendered at the bottom of the column
    *  (currently used for the reading list under Later). Cards inside the
    *  subsection reuse the same TaskCard so they behave identically apart
@@ -135,6 +138,7 @@ export function Column({
   onUpdate,
   onDelete,
   flashMergedId,
+  justArrivedIds,
   subsection,
   onToggleBook,
 }: Props) {
@@ -246,6 +250,7 @@ export function Column({
             key={task.id}
             task={task}
             justMerged={flashMergedId === task.id}
+            justArrived={justArrivedIds?.has(task.id) ?? false}
             onToggle={() => onUpdate(task.id, { completed: !task.completed })}
             onEdit={(title) => onUpdate(task.id, { title })}
             onDelete={() => onDelete(task.id)}
@@ -272,6 +277,7 @@ export function Column({
           onDelete={onDelete}
           onToggleBook={onToggleBook}
           flashMergedId={flashMergedId}
+          justArrivedIds={justArrivedIds}
         />
       ) : null}
       {/* Bottom spacer keeps the column visually anchored to its
@@ -297,11 +303,13 @@ function Subsection({
   onDelete,
   onToggleBook,
   flashMergedId,
+  justArrivedIds,
 }: SubsectionProps & {
   onUpdate: (id: string, patch: Partial<Task>) => void;
   onDelete: (id: string) => void;
   onToggleBook?: (task: Task) => void;
   flashMergedId?: string | null;
+  justArrivedIds?: Set<string>;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -358,6 +366,7 @@ function Subsection({
               key={task.id}
               task={task}
               justMerged={flashMergedId === task.id}
+              justArrived={justArrivedIds?.has(task.id) ?? false}
               onToggle={() => onUpdate(task.id, { completed: !task.completed })}
               onEdit={(title) => onUpdate(task.id, { title })}
               onDelete={() => onDelete(task.id)}

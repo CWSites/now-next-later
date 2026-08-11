@@ -14,6 +14,10 @@ interface Props {
   task: Task;
   dragging?: boolean;
   justMerged?: boolean;
+  /** True when the task first arrived in the most recent Refresh and is
+   *  still within the ~5min "look what's new" highlight window. Rendered
+   *  with an amber ring/tint so newly-ingested items pop visually. */
+  justArrived?: boolean;
   onToggle?: () => void;
   onEdit?: (title: string) => void;
   onDelete?: () => void;
@@ -27,6 +31,7 @@ export function TaskCard({
   task,
   dragging,
   justMerged,
+  justArrived,
   onToggle,
   onEdit,
   onDelete,
@@ -89,7 +94,9 @@ export function TaskCard({
           ? "ring-2 ring-blue-400 border-blue-200 bg-white shadow-xl scale-[1.02] dark:border-blue-800 dark:bg-neutral-900"
           : justMerged
             ? "ring-2 ring-green-400 border-green-300 bg-green-50 shadow-md dark:ring-green-500 dark:border-green-700 dark:bg-green-950/60"
-            : "border-neutral-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+            : justArrived
+              ? "ring-2 ring-amber-400 border-amber-300 bg-amber-50 shadow-md dark:ring-amber-500 dark:border-amber-700 dark:bg-amber-950/40"
+              : "border-neutral-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
       }`}
     >
       <input

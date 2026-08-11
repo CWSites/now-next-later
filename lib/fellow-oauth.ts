@@ -117,6 +117,20 @@ export async function exchangeCodeForTokens(
   return (await res.json()) as TokenResponse;
 }
 
+/**
+ * Exchange a refresh_token for a fresh access_token.
+ *
+ * Fellow's OAuth server rotates refresh tokens: each successful refresh
+ * response can carry a NEW refresh_token that supersedes the one we sent.
+ * If we don't persist the rotated value, the token we have on disk becomes
+ * a dead one-shot and every subsequent refresh fails with invalid_grant —
+ * which is why the Fellow connection appeared to "break again" a few hours
+ * after auth.
+ *
+ * We persist the rotated refresh_token back to secrets.local.json inside
+ * this function so all callers (ingest, settings/test) benefit without
+ * having to plumb the rotation through their own code paths.
+ */
 export async function refreshAccessToken(
   refreshToken: string,
   clientId: string,
@@ -133,7 +147,27 @@ export async function refreshAccessToken(
   if (!res.ok) {
     throw new Error(`Fellow token refresh failed: ${res.status} ${await res.text()}`);
   }
-  const data = (await res.json()) as { access_token: string };
+  const data = (await res.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+  };
   if (!data.access_token) throw new Error("Fellow refresh returned no access_token.");
+
+  // Persist a rotated refresh_token immediately. Do it inline so a crash
+  // between refresh and the next ingest doesn't leave us holding an already-
+  // consumed one-shot token.
+  if (data.refresh_token && data.refresh_token !== refreshToken) {
+    const { updateSecrets } = await import("@/lib/secrets");
+    try {
+      await updateSecrets({ FELLOW_REFRESH_TOKEN: data.refresh_token });
+      process.env.FELLOW_REFRESH_TOKEN = data.refresh_token;
+    } catch (err) {
+      // Best-effort: log but don't fail the current request. The access
+      // token is still valid; only the *next* refresh will fail, and the
+      // user can re-auth via the settings page.
+      console.error("Fellow: failed to persist rotated refresh_token", err);
+    }
+  }
+
   return data.access_token;
 }

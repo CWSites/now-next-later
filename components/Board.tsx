@@ -129,6 +129,14 @@ export function Board({ initialTasks }: Props) {
   const [flashMergedId, setFlashMergedId] = useState<string | null>(null);
   const [mergeToast, setMergeToast] = useState<string | null>(null);
   const [lastMergeSnapshot, setLastMergeSnapshot] = useState<MergeSnapshot | null>(null);
+  // Task ids that showed up in the most recent refresh and haven't been on
+  // screen long enough to have blended in. Rendered with an amber ring on
+  // the card so newly-ingested items are easy to spot. Cleared per-id when
+  // it's been on screen >= NEW_TASK_HIGHLIGHT_MS.
+  const NEW_TASK_HIGHLIGHT_MS = 5 * 60 * 1000;
+  const [justArrivedIds, setJustArrivedIds] = useState<Map<string, number>>(
+    () => new Map(),
+  );
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -311,6 +319,36 @@ export function Board({ initialTasks }: Props) {
     return () => window.clearTimeout(t);
   }, [flashMergedId, mergeToast, lastMergeSnapshot]);
 
+  // Expire just-arrived highlights. Instead of scheduling a timer per id,
+  // sweep every 30s and drop entries older than NEW_TASK_HIGHLIGHT_MS.
+  // Cheap because the map is tiny (only ids from the last refresh) and
+  // the interval runs regardless — no per-refresh timer bookkeeping.
+  useEffect(() => {
+    if (justArrivedIds.size === 0) return;
+    const tick = () => {
+      const cutoff = Date.now() - NEW_TASK_HIGHLIGHT_MS;
+      setJustArrivedIds((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const [id, ts] of next) {
+          if (ts < cutoff) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    };
+    const interval = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(interval);
+  }, [justArrivedIds, NEW_TASK_HIGHLIGHT_MS]);
+
+  // Derived plain Set for cheap per-card lookup in Column / TaskCard.
+  const justArrivedIdSet = useMemo(
+    () => new Set(justArrivedIds.keys()),
+    [justArrivedIds],
+  );
+
   async function undoMerge() {
     if (!lastMergeSnapshot) return;
     const snapshot = lastMergeSnapshot;
@@ -326,11 +364,12 @@ export function Board({ initialTasks }: Props) {
     }
   }
 
-  async function refetchTasks() {
+  async function refetchTasks(): Promise<Task[] | null> {
     const res = await fetch("/api/tasks");
-    if (!res.ok) return;
+    if (!res.ok) return null;
     const { tasks: fresh } = (await res.json()) as { tasks: Task[] };
     setTasks(fresh);
+    return fresh;
   }
 
   async function refresh() {
@@ -338,6 +377,10 @@ export function Board({ initialTasks }: Props) {
     setLastResult(null);
     setLastErrors([]);
     setLastErrors([]);
+    // Snapshot the pre-refresh id set so we can highlight the diff after
+    // refetchTasks() completes. `updateTask` etc. would clobber this if we
+    // read from state later, so capture up front.
+    const preIds = new Set(tasks.map((t) => t.id));
     try {
       const res = await fetch("/api/ingest", { method: "POST" });
       const summary = await res.json();
@@ -359,7 +402,21 @@ export function Board({ initialTasks }: Props) {
       if (disabled.length) parts.push(`${disabled.length} disabled`);
       setLastResult(parts.length ? parts.join(" · ") : "no changes");
       setLastErrors(errored);
-      await refetchTasks();
+      const freshTasks = await refetchTasks();
+      // Mark ids that appeared for the first time in this refresh. We union
+      // with any still-active highlights from a previous refresh, so quick
+      // successive refreshes don't blow away highlights that haven't
+      // expired yet.
+      if (freshTasks) {
+        const now = Date.now();
+        setJustArrivedIds((prev) => {
+          const next = new Map(prev);
+          for (const t of freshTasks) {
+            if (!preIds.has(t.id)) next.set(t.id, now);
+          }
+          return next;
+        });
+      }
     } catch (err) {
       setLastResult(`error: ${(err as Error).message}`);
       setLastErrors([{ name: "client", error: (err as Error).message }]);
@@ -730,6 +787,7 @@ export function Board({ initialTasks }: Props) {
                 onUpdate={updateTask}
                 onDelete={deleteTask}
                 flashMergedId={flashMergedId}
+                justArrivedIds={justArrivedIdSet}
                 onToggleBook={
                   isLater
                     ? (task) =>

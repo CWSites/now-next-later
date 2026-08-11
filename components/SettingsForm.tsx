@@ -276,7 +276,13 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                 >
                   Connect Fellow
                 </a>
-                <HelpTip text="Fellow uses OAuth 2.0 with PKCE and dynamic client registration — no API key needed. Click to authorize read-only access to your 1:1 action items." />
+                <a
+                  href="/api/settings/fellow/connect?reset=1"
+                  className="inline-block rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  Reset &amp; reconnect
+                </a>
+                <HelpTip text="Fellow uses OAuth 2.0 with PKCE and dynamic client registration — no API key needed. 'Connect Fellow' reuses the stored client_id; use 'Reset & reconnect' if Fellow shows 'Mismatching redirect URI' (happens when the app's port/origin changed since the client was first registered)." />
               </div>
             ) : null}
           </section>

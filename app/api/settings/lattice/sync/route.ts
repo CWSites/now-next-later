@@ -49,6 +49,10 @@ function corsHeaders(origin: string | null): Record<string, string> {
     "access-control-allow-methods": "POST, OPTIONS",
     "access-control-allow-headers": "content-type",
     "access-control-max-age": "600",
+    // Chrome's Private Network Access: a public HTTPS page fetching
+    // http://localhost must be explicitly opted-in on the target. Without
+    // this header the bookmarklet fails with a generic "Failed to fetch".
+    "access-control-allow-private-network": "true",
     vary: "origin",
   };
 }
