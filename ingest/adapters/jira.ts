@@ -1,4 +1,4 @@
-import type { Adapter, IngestItem } from "./base";
+import type { Adapter, AdapterIngestResult, IngestItem } from "./base";
 import type { Bucket } from "@/lib/types";
 import { getAllTasks } from "@/lib/storage";
 
@@ -23,7 +23,7 @@ export const jiraAdapter: Adapter = {
     return "Set JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN in .env.local";
   },
 
-  async ingest(): Promise<IngestItem[]> {
+  async ingest(): Promise<AdapterIngestResult> {
     const base = process.env.JIRA_URL!.replace(/\/+$/, "");
     const auth = Buffer.from(
       `${process.env.JIRA_USERNAME}:${process.env.JIRA_API_TOKEN}`,
@@ -115,22 +115,32 @@ export const jiraAdapter: Adapter = {
       return "later";
     }
 
-    const items: IngestItem[] = issues.map((issue) => {
+    const items: IngestItem[] = [];
+    const removedExternalIds: string[] = [];
+    for (const issue of issues) {
+      const externalId = `jira:${issue.key}`;
+      // Terminal statuses (Done / Closed / Won't Do / Rejected — anything
+      // Jira classifies under the "done" status category) get swept off the
+      // board. The runner uses allowCompleted:true so previously-marked-
+      // complete tasks are removed too, and skips tombstoning so a re-opened
+      // ticket comes back on the next sync.
+      if (issue.fields.status?.statusCategory?.key === "done") {
+        removedExternalIds.push(externalId);
+        continue;
+      }
       const bucket = bucketFor(issue.fields.duedate, issue.fields.status?.name ?? "");
       const status = issue.fields.status?.name ?? "";
       const due = issue.fields.duedate ? ` — due ${issue.fields.duedate}` : "";
-      const isDone = issue.fields.status?.statusCategory?.key === "done";
-      return {
-        externalId: `jira:${issue.key}`,
+      items.push({
+        externalId,
         title: `[${issue.key}] ${issue.fields.summary}`,
         bucket,
         sourceRef: `In Jira ${issue.key} (${status})${due}`,
         url: `${base}/browse/${issue.key}`,
-        completed: isDone,
-      };
-    });
+      });
+    }
 
-    return items;
+    return { items, removedExternalIds };
   },
 };
 

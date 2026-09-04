@@ -475,14 +475,18 @@ export async function upsertByExternalId(
  */
 export async function deleteByExternalId(
   externalId: string,
-  opts: { source?: string; tombstone?: boolean } = {},
+  opts: { source?: string; tombstone?: boolean; allowCompleted?: boolean } = {},
 ): Promise<{ deleted: boolean; reason?: string }> {
   return serialize(async () => {
     const file = await readFile();
     const idx = file.tasks.findIndex((t) => t.externalId === externalId);
     if (idx === -1) return { deleted: false, reason: "not-found" };
     const t = file.tasks[idx];
-    if (t.completed) return { deleted: false, reason: "completed" };
+    // By default we preserve completed tasks so history isn't lost. Ingest
+    // adapters can opt out via `allowCompleted` when the SOURCE explicitly
+    // says the item is finished (e.g. a Jira ticket moved to Done/Closed) —
+    // in that case there's no user-side history worth preserving.
+    if (t.completed && !opts.allowCompleted) return { deleted: false, reason: "completed" };
     if (opts.source && t.source && t.source !== opts.source) {
       return { deleted: false, reason: "source-mismatch" };
     }

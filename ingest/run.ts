@@ -98,7 +98,15 @@ export async function runIngest(): Promise<IngestSummary> {
         else updated++;
       }
       for (const externalId of removals) {
-        const { deleted } = await deleteByExternalId(externalId, { source: adapter.name });
+        // Adapter-driven removals authoritatively reflect that the source no
+        // longer considers this item on the board — e.g. a Jira ticket that
+        // moved to Done/Closed. Bypass the "preserve completed history"
+        // guard: for source-owned items there's no user-side history worth
+        // keeping. Don't tombstone — the ticket may legitimately re-open.
+        const { deleted } = await deleteByExternalId(externalId, {
+          source: adapter.name,
+          allowCompleted: true,
+        });
         if (deleted) removed++;
       }
       results.push({
