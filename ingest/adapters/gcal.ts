@@ -36,15 +36,18 @@ export const gcalAdapter: Adapter = {
 
     const accessToken = await refreshAccessToken(refreshToken, clientId, clientSecret);
 
-    // Only ask Google for today's events. A defensive belt-and-suspenders
-    // check in the mapper drops anything outside the window too, in case
-    // the API returns broader results (e.g. recurring event exceptions).
+    // Ask Google for the whole day (start-of-day through end-of-day). The
+    // mapper filters events with startsAt < now into removedExternalIds so
+    // meetings that already happened get swept from the board on the next
+    // refresh instead of sitting in "now" showing a stale time.
     const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
 
     const params = new URLSearchParams({
-      timeMin: now.toISOString(),
+      timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
       singleEvents: "true",
       orderBy: "startTime",

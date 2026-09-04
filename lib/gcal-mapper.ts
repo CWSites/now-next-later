@@ -50,6 +50,8 @@ export function mapEvents(events: GCalMappableEvent[], opts: MapOptions = {}): M
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
 
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(now);
   endOfDay.setHours(23, 59, 59, 999);
 
@@ -57,13 +59,24 @@ export function mapEvents(events: GCalMappableEvent[], opts: MapOptions = {}): M
   const removedExternalIds: string[] = [];
   const skipAndRemove = (id: string) => removedExternalIds.push(`gcal:${id}`);
 
-  // Sweep any pre-existing gcal:* task that isn't in Now — leftover from
-  // older adapter versions or from prior refreshes that used broader
-  // buckets. Runner honors the completed-task guard, so history is safe.
+  // Sweep any pre-existing gcal:* task that:
+  //  - isn't in Now (leftover from older adapter versions), OR
+  //  - was created before start-of-today. Since the gcal adapter only ever
+  //    creates tasks for today's events, `createdAt < startOfDay` implies
+  //    the task represents a meeting from a prior day that never got cleaned
+  //    up (Google stopped returning it, so the mapper never saw it again).
+  // Runner honors the completed-task guard, so history is safe.
   for (const t of existing) {
     const eid = t.externalId ?? "";
     if (!eid.startsWith("gcal:")) continue;
-    if (t.bucket !== "now") removedExternalIds.push(eid);
+    if (t.bucket !== "now") {
+      removedExternalIds.push(eid);
+      continue;
+    }
+    const createdAt = t.createdAt ? new Date(t.createdAt) : null;
+    if (createdAt && !Number.isNaN(createdAt.getTime()) && createdAt < startOfDay) {
+      removedExternalIds.push(eid);
+    }
   }
 
   for (const ev of events) {

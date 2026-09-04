@@ -28,8 +28,10 @@ function makeTask(overrides: Partial<Task>): Task {
     bucket: "now",
     position: 0,
     completed: false,
-    createdAt: "2026-07-29T00:00:00Z",
-    updatedAt: "2026-07-29T00:00:00Z",
+    // Default createdAt is on the same local day as NOON_TODAY so the
+    // "created before start-of-today" sweep doesn't fire by default.
+    createdAt: "2026-07-29T12:00:00-04:00",
+    updatedAt: "2026-07-29T12:00:00-04:00",
     ...overrides,
   };
 }
@@ -157,6 +159,30 @@ describe("gcal mapper", () => {
       expect(removedExternalIds).toContain("gcal:leftover-later");
       expect(removedExternalIds).not.toContain("gcal:actually-today");
       expect(removedExternalIds).not.toContain("jira:PROJ-1");
+    });
+
+    it("sweeps gcal:* tasks in Now that were created on a previous day", () => {
+      // Regression: a meeting from a previous day (e.g. "EU/ML 6pager sync
+      // — today 1:30 PM" created on 2026-08-28) kept sitting in the Now
+      // column forever because Google no longer returned it and the sweep
+      // only fired on bucket mismatch.
+      const existingTasks = [
+        makeTask({
+          id: "yesterday",
+          bucket: "now",
+          externalId: "gcal:yesterday-event",
+          createdAt: "2026-07-28T14:00:00-04:00",
+        }),
+        makeTask({
+          id: "today",
+          bucket: "now",
+          externalId: "gcal:today-event",
+          createdAt: "2026-07-29T08:00:00-04:00",
+        }),
+      ];
+      const { removedExternalIds } = mapEvents([], { now: NOON_TODAY, existingTasks });
+      expect(removedExternalIds).toContain("gcal:yesterday-event");
+      expect(removedExternalIds).not.toContain("gcal:today-event");
     });
   });
 
