@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "bash ./scripts/refresh-slack-tokens.sh || echo '[slack-refresh] failed — continuing dev start (set SKIP_SLACK_REFRESH=1 to silence)'",
     "dev": "next dev --webpack -p 4823",
     "build": "next build --webpack",
     "start": "next start -p 4823",
