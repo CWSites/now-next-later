@@ -11,6 +11,13 @@ export interface IngestItem {
   notes?: string;
   /** Deep-link to the source system. */
   url?: string;
+  /**
+   * When true, the source system considers this item complete (e.g. a Jira
+   * ticket that moved to a Done status category). The runner will mark the
+   * local task complete on upsert, but will never un-complete a task that
+   * the user already checked off manually.
+   */
+  completed?: boolean;
 }
 
 /**

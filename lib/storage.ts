@@ -355,7 +355,18 @@ export async function reorderBucket(bucket: Bucket, orderedIds: string[]): Promi
  * bucket, and completion state are preserved so the user's manual arrangement
  * survives ingest re-runs.
  */
-export async function upsertByExternalId(input: CreateTaskInput & { externalId: string }): Promise<{
+export async function upsertByExternalId(
+  input: CreateTaskInput & {
+    externalId: string;
+    /**
+     * When true, the source system has marked this item complete. Storage
+     * will flip the local task's `completed` flag to true (once) and stamp
+     * `completedAt`. It will NEVER un-complete a task that was already
+     * checked off — completion is monotonic here.
+     */
+    sourceCompleted?: boolean;
+  },
+): Promise<{
   task: Task | null;
   created: boolean;
   adopted: boolean;
@@ -407,6 +418,13 @@ export async function upsertByExternalId(input: CreateTaskInput & { externalId: 
       let changed = false;
       if (input.sourceRef !== undefined && input.sourceRef !== existing.sourceRef) {
         existing.sourceRef = input.sourceRef;
+        changed = true;
+      }
+      // Source-driven completion: if the source says done and we haven't
+      // already recorded completion locally, flip it. Never the reverse.
+      if (input.sourceCompleted && !existing.completed) {
+        existing.completed = true;
+        existing.completedAt = now;
         changed = true;
       }
       if (input.url && input.url !== existing.url) {
