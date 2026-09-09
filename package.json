@@ -2,6 +2,7 @@
   "name": "now-next-later",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "scripts": {
     "predev": "bash ./scripts/refresh-slack-tokens.sh || echo '[slack-refresh] failed — continuing dev start (set SKIP_SLACK_REFRESH=1 to silence)'",
     "dev": "next dev --webpack -p 4823",
