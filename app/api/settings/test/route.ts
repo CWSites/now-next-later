@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applySecretsToEnv } from "@/lib/secrets";
+import { applySecretsToEnv, getDisabledProviders, type Provider } from "@/lib/secrets";
 
 /**
  * Test that stored credentials actually work — without returning the
@@ -303,6 +303,11 @@ async function testFellow(): Promise<TestResult> {
 
 export async function POST() {
   await applySecretsToEnv();
+  const disabled = getDisabledProviders();
+  // Run every test in parallel, then overlay a "Disabled in Settings"
+  // result for anything the user has turned off. We still await the real
+  // test for simplicity; the overlay just rewrites the status so the UI
+  // doesn't show a red dot for a provider the user intentionally silenced.
   const results = await Promise.all([
     testJira(),
     testSlack(),
@@ -311,7 +316,17 @@ export async function POST() {
     testFellow(),
     testLattice(),
   ]);
-  return NextResponse.json({ results });
+  const masked = results.map((r) =>
+    disabled.has(r.name as Provider)
+      ? ({
+          name: r.name,
+          configured: false,
+          ok: false,
+          detail: "Disabled in Settings.",
+        } satisfies TestResult)
+      : r,
+  );
+  return NextResponse.json({ results: masked });
 }
 // (testLattice kept as a stub — reports whatever the last bookmarklet sync
 // looked like, since there's no server-side auth to test.)

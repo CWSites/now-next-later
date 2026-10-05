@@ -20,17 +20,66 @@ interface TestResult {
 interface Props {
   initial: SecretView[];
   providers: ProviderMeta[];
+  initialDisabled: Provider[];
   appOrigin: string;
   slackWorkspaceMatch: string;
 }
 
-export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatch }: Props) {
+export function SettingsForm({
+  initial,
+  providers,
+  initialDisabled,
+  appOrigin,
+  slackWorkspaceMatch,
+}: Props) {
   const [settings, setSettings] = useState<SecretView[]>(initial);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResults, setTestResults] = useState<Record<string, TestResult> | null>(null);
+  const [disabled, setDisabled] = useState<Set<Provider>>(new Set(initialDisabled));
+  const [togglingProvider, setTogglingProvider] = useState<Provider | null>(null);
+
+  async function toggleDisabled(provider: Provider, next: boolean) {
+    // Optimistic update so the toggle feels instant; roll back on error.
+    setTogglingProvider(provider);
+    setDisabled((prev) => {
+      const copy = new Set(prev);
+      if (next) copy.add(provider);
+      else copy.delete(provider);
+      return copy;
+    });
+    try {
+      const res = await fetch("/api/settings/providers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider, disabled: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { disabled: fresh } = (await res.json()) as { disabled: Provider[] };
+      setDisabled(new Set(fresh));
+      // Clear any stale test result for this provider so the old red/green
+      // dot doesn't contradict the new disabled state.
+      setTestResults((prev) => {
+        if (!prev || !prev[provider]) return prev;
+        const copy = { ...prev };
+        delete copy[provider];
+        return copy;
+      });
+    } catch (err) {
+      // Roll back optimistic update on failure.
+      setDisabled((prev) => {
+        const copy = new Set(prev);
+        if (next) copy.delete(provider);
+        else copy.add(provider);
+        return copy;
+      });
+      setStatus(`Error toggling ${provider}: ${(err as Error).message}`);
+    } finally {
+      setTogglingProvider(null);
+    }
+  }
 
   const byProvider = useMemo(() => {
     const m = new Map<Provider, SecretView[]>();
@@ -135,7 +184,9 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
         return (
           <section
             key={p.id}
-            className="flex flex-col rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
+            className={`flex flex-col rounded-lg border border-neutral-200 bg-white p-4 shadow-sm transition-opacity dark:border-neutral-800 dark:bg-neutral-900 ${
+              disabled.has(p.id) ? "opacity-60" : ""
+            }`}
           >
             <header className="mb-3 flex items-start justify-between gap-3">
               <div className="flex items-start gap-2.5">
@@ -151,7 +202,26 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                   <p className="mt-0.5 text-xs text-neutral-500">{p.description}</p>
                 </div>
               </div>
-              {result ? (
+              <div className="flex items-center gap-2">
+                <label
+                  className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-500"
+                  title={
+                    disabled.has(p.id)
+                      ? `${p.label} is disabled — ingest and test will skip it. Credentials are preserved.`
+                      : `Disable ${p.label} to skip it in ingest/test without clearing credentials.`
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 cursor-pointer accent-blue-500"
+                    checked={!disabled.has(p.id)}
+                    disabled={togglingProvider === p.id}
+                    onChange={(e) => void toggleDisabled(p.id, !e.target.checked)}
+                    aria-label={`${disabled.has(p.id) ? "Enable" : "Disable"} ${p.label}`}
+                  />
+                  <span>{disabled.has(p.id) ? "off" : "on"}</span>
+                </label>
+                {result ? (
                 <span
                   aria-label={
                     result.ok
@@ -174,6 +244,7 @@ export function SettingsForm({ initial, providers, appOrigin, slackWorkspaceMatc
                   }`}
                 />
               ) : null}
+              </div>
             </header>
 
             <div className="space-y-4">
