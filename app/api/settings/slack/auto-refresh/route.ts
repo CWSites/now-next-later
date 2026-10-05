@@ -147,16 +147,19 @@ function safeDecode(v: string): string {
 }
 
 function hintFor(detail: string): string | null {
-  if (/no signed-in app\.slack\.com tab/i.test(detail)) {
-    return "Either (a) open https://app.slack.com/client in Chrome and sign in, or (b) in Chrome enable View → Developer → Allow JavaScript from Apple Events. The second one is the usual culprit when a Slack tab is clearly open.";
+  if (/no browser had extractable Slack credentials/i.test(detail)) {
+    return "Sign into https://app.slack.com/client in Firefox or Chrome, then click Refresh again. Firefox is preferred — it works entirely from disk.";
   }
-  if (/Chrome Safe Storage/i.test(detail)) {
+  if (/every candidate pair was rejected/i.test(detail)) {
+    return "Browser state was readable but Slack rejected the tokens. Sign out and back into Slack in your browser, then click Refresh again.";
+  }
+  if (/Keychain|Chrome Safe Storage/i.test(detail)) {
     return "macOS Keychain is locked or denied access. Unlock the login keychain and retry — you may see a one-time prompt.";
   }
-  if (/pycryptodome|Crypto\.Cipher/i.test(detail)) {
-    return "Install the Python dependency: pip3 install --user pycryptodome";
+  if (/pycryptodome|cramjam|Crypto\.Cipher/i.test(detail)) {
+    return "Python dependency missing. Run: pip3 install --user --break-system-packages pycryptodome cramjam";
   }
-  if (/unsupported_scheme/i.test(detail)) {
+  if (/unsupported.*scheme/i.test(detail)) {
     return "Chrome's cookie encryption scheme changed. The script needs updating to use CDP instead of on-disk decryption.";
   }
   return null;
