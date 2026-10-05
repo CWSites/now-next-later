@@ -209,7 +209,58 @@ export const SECRET_SCHEMA: SecretField[] = [
 
 ];
 
-const SECRET_KEYS = new Set(SECRET_SCHEMA.map((f) => f.key));
+/**
+ * Keys we allow to persist in secrets.local.json beyond the rendered
+ * SECRET_SCHEMA fields. These are settings-shaped but not surfaced as
+ * form inputs (e.g. per-provider enable/disable toggles that have their
+ * own UI control).
+ */
+const ADDITIONAL_PERSISTED_KEYS = ["DISABLED_PROVIDERS"] as const;
+
+const SECRET_KEYS = new Set<string>([
+  ...SECRET_SCHEMA.map((f) => f.key),
+  ...ADDITIONAL_PERSISTED_KEYS,
+]);
+
+/**
+ * Which providers the user has explicitly disabled. Disabled providers are
+ * skipped by the ingest loop and the test route regardless of whether their
+ * credentials are configured. Lets the user silence a known-broken provider
+ * (e.g. Granola API access not enabled by their workspace admin) without
+ * wiping valid credentials they'll want back once the gating issue is fixed.
+ */
+export function getDisabledProviders(): Set<Provider> {
+  const raw = (process.env.DISABLED_PROVIDERS ?? "").trim();
+  if (!raw) return new Set();
+  const valid = new Set(PROVIDERS.map((p) => p.id));
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s): s is Provider => valid.has(s as Provider)),
+  );
+}
+
+export function isProviderDisabled(provider: Provider): boolean {
+  return getDisabledProviders().has(provider);
+}
+
+/**
+ * Flip a single provider's disabled flag and persist the updated set.
+ * No-op if the flag is already in the requested state.
+ */
+export async function setProviderDisabled(
+  provider: Provider,
+  disabled: boolean,
+): Promise<Set<Provider>> {
+  const current = getDisabledProviders();
+  if (disabled) current.add(provider);
+  else current.delete(provider);
+  // Serialize in PROVIDERS order so the file diff stays stable.
+  const ordered = PROVIDERS.map((p) => p.id).filter((id) => current.has(id));
+  await updateSecrets({ DISABLED_PROVIDERS: ordered.join(",") });
+  return current;
+}
 
 const SECRETS_FILE = path.join(
   process.env.DATA_REPO_PATH ? path.resolve(process.env.DATA_REPO_PATH) : process.cwd(),

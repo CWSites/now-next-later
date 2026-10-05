@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { applySecretsToEnv, getSecretsView, PROVIDERS } from "@/lib/secrets";
+import { applySecretsToEnv, getDisabledProviders, getSecretsView, PROVIDERS } from "@/lib/secrets";
 import { SettingsForm } from "@/components/SettingsForm";
 import { HelpTip } from "@/components/HelpTip";
 
@@ -16,6 +16,7 @@ export default async function SettingsPage({ searchParams }: Params) {
   // dev-server restart.
   await applySecretsToEnv();
   const settings = await getSecretsView();
+  const disabledProviders = Array.from(getDisabledProviders());
   const { gcal, fellow } = await searchParams;
   const h = await headers();
   const host = h.get("host") ?? "localhost:4823";
@@ -68,6 +69,7 @@ export default async function SettingsPage({ searchParams }: Params) {
       <SettingsForm
         initial={settings}
         providers={PROVIDERS}
+        initialDisabled={disabledProviders}
         appOrigin={appOrigin}
         slackWorkspaceMatch={workspaceMatch}
       />

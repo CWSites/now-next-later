@@ -7,7 +7,7 @@ import { fellowAdapter } from "./adapters/fellow";
 import { deleteByExternalId, getAllTasks, upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
 import { REPO_ROOT } from "@/lib/storage";
-import { applySecretsToEnv } from "@/lib/secrets";
+import { applySecretsToEnv, isProviderDisabled, type Provider } from "@/lib/secrets";
 import { shouldSkipAsDuplicate } from "@/lib/ingest-dedup";
 
 // Register adapters here. New adapters just need to be added to this list.
@@ -44,6 +44,19 @@ export async function runIngest(): Promise<IngestSummary> {
   const preIngest = await getAllTasks();
 
   for (const adapter of ADAPTERS) {
+    if (isProviderDisabled(adapter.name as Provider)) {
+      results.push({
+        name: adapter.name,
+        ran: false,
+        reason: "Disabled in Settings.",
+        fetched: 0,
+        created: 0,
+        updated: 0,
+        removed: 0,
+        skipped: 0,
+      });
+      continue;
+    }
     if (!adapter.enabled()) {
       results.push({
         name: adapter.name,
