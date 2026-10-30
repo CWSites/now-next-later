@@ -84,6 +84,7 @@ const BUILT_IN_KEYWORDS: Record<string, string[]> = {
     "1:1",
     "1-1",
     "one-on-one",
+    "one on one",
     "standup",
     "stand-up",
     "retro",
@@ -106,6 +107,24 @@ const BUILT_IN_KEYWORDS: Record<string, string[]> = {
     "pairing",
     "pair session",
     "demo",
+    // Direct-report / project-support work. "report" alone is too
+    // generic (collides with dashboards, metrics reports, bug reports),
+    // so we require the "direct report(s)" phrasing. Project discussion /
+    // project sync / project review are distinctive enough on their own.
+    "direct report",
+    "direct reports",
+    "project discussion",
+    "project sync",
+    "project review",
+    "project kickoff",
+    "project update",
+    "team meeting",
+    "team sync",
+    "team offsite",
+    "team lunch",
+    "IC growth",
+    "growth plan",
+    "development plan",
   ],
   "team-topology": [
     "topology",
@@ -151,6 +170,27 @@ const BUILT_IN_KEYWORDS: Record<string, string[]> = {
     "rtl",
     "unicode",
     "intl",
+    // Geographic signals 
+dash any mention of Europe / EU markets or the
+    // broader EMEA region implies an internationalization angle for a
+    // US-headquartered product. Specific European countries are strong
+    // enough on their own to pass the single-hit threshold.
+    "europe",
+    "european",
+    "EU",
+    "EMEA",
+    "UK",
+    "germany",
+    "france",
+    "spain",
+    "italy",
+    "netherlands",
+    "nordics",
+    "dach",
+    "benelux",
+    "GDPR",
+    "data residency",
+    "data resident",
   ],
   "engineering-metrics": [
     "metrics",
