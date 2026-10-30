@@ -28,6 +28,7 @@ const noShiftStrategy: SortingStrategy = () => null;
 import type { MergeSnapshot } from "@/lib/storage";
 import { BUCKETS, Bucket, Priority, Task } from "@/lib/types";
 import { Column } from "./Column";
+import { SwimLanes, parseSwimCellId, UNASSIGNED_LANE_ID } from "./SwimLanes";
 import { TaskCard } from "./TaskCard";
 import { RecentlyDone } from "./RecentlyDone";
 import { IcalDate } from "./IcalDate";
@@ -122,7 +123,20 @@ export function Board({ initialTasks, initialPriorities }: Props) {
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [lastErrors, setLastErrors] = useState<Array<{ name: string; error: string }>>([]);
 
-  const [view, setView] = useState<"board" | "done">("board");
+  // 'board' is the original three-column layout; 'swimlanes' is the
+  // priority-by-bucket grid. Choice persists to localStorage so a
+  // reload keeps the user's preferred layout.
+  const [view, setView] = useState<"board" | "swimlanes" | "done">(() => {
+    if (typeof window === "undefined") return "board";
+    const stored = window.localStorage.getItem("nnl-view");
+    return stored === "swimlanes" || stored === "done" || stored === "board"
+      ? stored
+      : "board";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("nnl-view", view);
+  }, [view]);
   // Tracks whether Shift is held during an active drag. When true, dropping
   // onto another task card merges the two instead of reordering.
   const [mergeMode, setMergeMode] = useState(false);
@@ -560,6 +574,46 @@ export function Board({ initialTasks, initialPriorities }: Props) {
     const overIdStr = String(over.id);
     if (activeIdStr === overIdStr) return;
 
+    // Swim-lane view: drops land on either a cell (id starts with
+    // 'swim:') or on another task card. In both cases we normalize to
+    // a target (priorityId, bucket) and update the task. In-cell
+    // reordering is a Phase 3 concern. Short-circuit before the
+    // column-view section logic below.
+    if (view === "swimlanes") {
+      let target: { priorityId: string | null; bucket: Bucket } | null = null;
+      const cell = parseSwimCellId(overIdStr);
+      if (cell) {
+        target = {
+          priorityId: cell.priorityId === UNASSIGNED_LANE_ID ? null : cell.priorityId,
+          bucket: cell.bucket,
+        };
+      } else {
+        // Dropped onto a card: use that card's lane as the target.
+        const overTask = tasks.find((t) => t.id === overIdStr);
+        if (overTask) {
+          target = {
+            priorityId: overTask.priorityId ?? null,
+            bucket: overTask.bucket,
+          };
+        }
+      }
+      if (!target) return;
+      const active = tasks.find((t) => t.id === activeIdStr);
+      if (!active) return;
+      // No-op when the card is already in the target lane.
+      if (
+        (active.priorityId ?? null) === target.priorityId &&
+        active.bucket === target.bucket
+      ) {
+        return;
+      }
+      void updateTask(activeIdStr, {
+        bucket: target.bucket,
+        priorityId: target.priorityId,
+      });
+      return;
+    }
+
     // Merge intent: shift held during drag AND dropped over a task card
     // (not a bare column). Works across columns — the target's column
     // wins so the user sees the merged card wherever they dropped it.
@@ -733,6 +787,9 @@ export function Board({ initialTasks, initialPriorities }: Props) {
           <TabButton active={view === "board"} onClick={() => setView("board")}>
             Board
           </TabButton>
+          <TabButton active={view === "swimlanes"} onClick={() => setView("swimlanes")}>
+            Swim lanes
+          </TabButton>
           <TabButton active={view === "done"} onClick={() => setView("done")}>
             Completed
             {recentlyDone.today.length + recentlyDone.earlierThisWeek.length > 0 ? (
@@ -894,6 +951,16 @@ export function Board({ initialTasks, initialPriorities }: Props) {
             </button>
           ) : null}
         </div>
+      ) : null}
+      {view === "swimlanes" ? (
+        <SwimLanes
+          tasks={tasks.filter((t) => !isArchivedForToday(t, new Date()))}
+          priorities={priorities}
+          flashMergedId={flashMergedId}
+          justArrivedIds={justArrivedIdSet}
+          onUpdate={updateTask}
+          onDelete={deleteTask}
+        />
       ) : null}
       {view === "done" ? (
         <RecentlyDone
