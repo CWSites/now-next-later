@@ -170,8 +170,7 @@ const BUILT_IN_KEYWORDS: Record<string, string[]> = {
     "rtl",
     "unicode",
     "intl",
-    // Geographic signals 
-dash any mention of Europe / EU markets or the
+    // Geographic signals — any mention of Europe / EU markets or the
     // broader EMEA region implies an internationalization angle for a
     // US-headquartered product. Specific European countries are strong
     // enough on their own to pass the single-hit threshold.

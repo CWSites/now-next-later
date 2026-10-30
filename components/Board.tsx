@@ -411,6 +411,28 @@ export function Board({ initialTasks, initialPriorities }: Props) {
       // Errors are shown as a separate red chip, not in the main status text.
       // (see errorChip in the render)
       if (disabled.length) parts.push(`${disabled.length} disabled`);
+      // Auto-tag newly-ingested tasks with a priority. We run this
+      // after ingest and before the final refetch so the freshly-
+      // assigned priorityIds land in the same board update — the user
+      // never sees a flash of untagged cards. `overwrite: false` means
+      // we only touch tasks that don't already have a priority (manual
+      // picks stick) and completed/archived tasks are skipped server-
+      // side.
+      try {
+        const aaRes = await fetch("/api/priorities/auto-assign", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ dryRun: false, overwrite: false }),
+        });
+        if (aaRes.ok) {
+          const aa = await aaRes.json();
+          if (aa.assigned > 0) parts.push(`${aa.assigned} auto-tagged`);
+        }
+      } catch {
+        // Non-fatal — refresh still succeeded, auto-tag can retry on
+        // the next refresh. Don't surface a scary error for a
+        // nice-to-have.
+      }
       setLastResult(parts.length ? parts.join(" · ") : "no changes");
       setLastErrors(errored);
       const freshTasks = await refetchTasks();
