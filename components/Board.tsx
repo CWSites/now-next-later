@@ -26,7 +26,7 @@ import {
  */
 const noShiftStrategy: SortingStrategy = () => null;
 import type { MergeSnapshot } from "@/lib/storage";
-import { BUCKETS, Bucket, Task } from "@/lib/types";
+import { BUCKETS, Bucket, Priority, Task } from "@/lib/types";
 import { Column } from "./Column";
 import { TaskCard } from "./TaskCard";
 import { RecentlyDone } from "./RecentlyDone";
@@ -111,10 +111,12 @@ const CheckIcon = (
 
 interface Props {
   initialTasks: Task[];
+  initialPriorities: Priority[];
 }
 
-export function Board({ initialTasks }: Props) {
+export function Board({ initialTasks, initialPriorities }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [priorities] = useState<Priority[]>(initialPriorities);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
@@ -209,21 +211,30 @@ export function Board({ initialTasks }: Props) {
     setTasks((prev) => [...prev, task]);
   }
 
-  // `category` accepts `null` to explicitly clear the field on the server;
-  // Task's own type only permits string | undefined, so we widen the patch
-  // shape here rather than casting at every callsite.
-  type TaskPatch = Partial<Omit<Task, "category">> & { category?: string | null };
+  // `category` and `priorityId` accept `null` to explicitly clear the
+  // field on the server; Task's own type only permits string | undefined,
+  // so we widen the patch shape here rather than casting at every callsite.
+  type TaskPatch = Partial<Omit<Task, "category" | "priorityId">> & {
+    category?: string | null;
+    priorityId?: string | null;
+  };
 
   async function updateTask(id: string, patch: TaskPatch) {
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== id) return t;
-        const next: Task = { ...t, ...patch, category: patch.category ?? undefined };
+        const next: Task = {
+          ...t,
+          ...patch,
+          category: patch.category ?? undefined,
+          priorityId: patch.priorityId ?? undefined,
+        };
         // Mirror server: un-completing clears the archive flag so the task
         // returns to its column instead of staying hidden.
         if (patch.completed === false) next.archived = undefined;
-        // Clearing category (null) also clears it in local state.
+        // Clearing category / priorityId (null) also clears locally.
         if (patch.category === null) next.category = undefined;
+        if (patch.priorityId === null) next.priorityId = undefined;
         return next;
       }),
     );
@@ -783,6 +794,7 @@ export function Board({ initialTasks }: Props) {
               <Column
                 bucket={bucket}
                 tasks={mainTasks}
+                priorities={priorities}
                 onCreate={(title, url) => createTask(title, bucket, url)}
                 onUpdate={updateTask}
                 onDelete={deleteTask}

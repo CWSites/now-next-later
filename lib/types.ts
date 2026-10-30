@@ -32,6 +32,30 @@ export interface Task {
    *  categories don't require a schema migration. Empty / undefined =
    *  no sub-grouping. */
   category?: string;
+  /** Optional link to a user-defined Priority (see TasksFile.priorities).
+   *  undefined = unassigned. Priorities are an orthogonal axis to
+   *  bucket (now/next/later) — a task has at most one priority. */
+  priorityId?: string;
+}
+
+/**
+ * A user-defined focus area for ranking work (e.g. "Hiring", "Squad
+ * Support", "Internationalization"). Lives in TasksFile.priorities so it
+ * syncs with tasks via the same git sync. Ranks are 1-based and define
+ * the display order; the `#N` badge on a task card shows the rank.
+ */
+export interface Priority {
+  id: string;
+  label: string;
+  /** 1-based rank. Determines sort order and the `#N` badge. */
+  rank: number;
+  /** Optional accent color token (tailwind-friendly short name, e.g.
+   *  "rose" | "amber" | "emerald"). Rendered via a lookup in TaskCard
+   *  so arbitrary user input can't inject class names. */
+  color?: string;
+  /** When true, hide from pickers but keep historical tasks' priorityId
+   *  valid so their badges still render. */
+  retired?: boolean;
 }
 
 /**
@@ -56,4 +80,5 @@ export interface TasksFile {
   version: 1;
   tasks: Task[];
   tombstones?: Tombstone[];
+  priorities?: Priority[];
 }

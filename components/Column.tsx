@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import type { Bucket, Task } from "@/lib/types";
+import type { Bucket, Priority, Task } from "@/lib/types";
 import { TaskCard } from "./TaskCard";
 
 interface BucketMeta {
@@ -113,8 +113,17 @@ interface SubsectionProps {
 interface Props {
   bucket: Bucket;
   tasks: Task[];
+  /** All known priorities, ordered by rank. Used to render each card's
+   *  `#N Label` badge and populate the picker popover. */
+  priorities: Priority[];
   onCreate: (title: string, url?: string) => void;
-  onUpdate: (id: string, patch: Partial<Task>) => void;
+  onUpdate: (
+    id: string,
+    patch: Omit<Partial<Task>, "priorityId" | "category"> & {
+      priorityId?: string | null;
+      category?: string | null;
+    },
+  ) => void;
   onDelete: (id: string) => void;
   /** When set to a task id, that card briefly flashes to confirm a merge. */
   flashMergedId?: string | null;
@@ -134,6 +143,7 @@ interface Props {
 export function Column({
   bucket,
   tasks,
+  priorities,
   onCreate,
   onUpdate,
   onDelete,
@@ -249,12 +259,14 @@ export function Column({
           <TaskCard
             key={task.id}
             task={task}
+            priorities={priorities}
             justMerged={flashMergedId === task.id}
             justArrived={justArrivedIds?.has(task.id) ?? false}
             onToggle={() => onUpdate(task.id, { completed: !task.completed })}
             onEdit={(title) => onUpdate(task.id, { title })}
             onDelete={() => onDelete(task.id)}
             onToggleBook={onToggleBook ? () => onToggleBook(task) : undefined}
+            onSetPriority={(priorityId) => onUpdate(task.id, { priorityId })}
           />
         ))}
         {tasks.length === 0 ? (
@@ -273,6 +285,7 @@ export function Column({
       {subsection ? (
         <Subsection
           {...subsection}
+          priorities={priorities}
           onUpdate={onUpdate}
           onDelete={onDelete}
           onToggleBook={onToggleBook}
@@ -296,6 +309,7 @@ function Subsection({
   iconSrc,
   inputPlaceholder,
   tasks,
+  priorities,
   onCreate,
   showInput = true,
   highlight,
@@ -305,7 +319,14 @@ function Subsection({
   flashMergedId,
   justArrivedIds,
 }: SubsectionProps & {
-  onUpdate: (id: string, patch: Partial<Task>) => void;
+  priorities: Priority[];
+  onUpdate: (
+    id: string,
+    patch: Omit<Partial<Task>, "priorityId" | "category"> & {
+      priorityId?: string | null;
+      category?: string | null;
+    },
+  ) => void;
   onDelete: (id: string) => void;
   onToggleBook?: (task: Task) => void;
   flashMergedId?: string | null;
@@ -365,12 +386,14 @@ function Subsection({
             <TaskCard
               key={task.id}
               task={task}
+              priorities={priorities}
               justMerged={flashMergedId === task.id}
               justArrived={justArrivedIds?.has(task.id) ?? false}
               onToggle={() => onUpdate(task.id, { completed: !task.completed })}
               onEdit={(title) => onUpdate(task.id, { title })}
               onDelete={() => onDelete(task.id)}
               onToggleBook={onToggleBook ? () => onToggleBook(task) : undefined}
+              onSetPriority={(priorityId) => onUpdate(task.id, { priorityId })}
             />
           ))}
           {tasks.length === 0 ? (

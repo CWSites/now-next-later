@@ -17,6 +17,7 @@ const CreateSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => undefined)),
   category: z.string().trim().max(50).optional(),
+  priorityId: z.string().trim().max(50).optional(),
 });
 
 export async function GET() {

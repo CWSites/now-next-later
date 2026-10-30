@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { Bucket, Task, TasksFile, Tombstone } from "./types";
+import type { Bucket, Priority, Task, TasksFile, Tombstone } from "./types";
 import { queueSync } from "./git-sync";
 import { recordMergeForLearning } from "./dedup-learner";
 
@@ -63,6 +63,7 @@ export interface CreateTaskInput {
   externalId?: string;
   url?: string;
   category?: string;
+  priorityId?: string;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -85,6 +86,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       externalId: input.externalId,
       url: input.url,
       category: input.category?.trim() || undefined,
+      priorityId: input.priorityId?.trim() || undefined,
     };
     file.tasks.push(task);
     await writeFile(file, `add: ${task.title.slice(0, 60)}`);
@@ -101,6 +103,8 @@ export interface UpdateTaskInput {
   position?: number;
   /** Pass `null` to clear the category. */
   category?: string | null;
+  /** Pass `null` to clear the priority. */
+  priorityId?: string | null;
 }
 
 export async function updateTask(id: string, input: UpdateTaskInput): Promise<Task | null> {
@@ -132,6 +136,10 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
     if (input.category !== undefined) {
       const c = input.category?.trim();
       task.category = c ? c : undefined;
+    }
+    if (input.priorityId !== undefined) {
+      const p = input.priorityId?.trim();
+      task.priorityId = p ? p : undefined;
     }
     task.updatedAt = now;
 
@@ -505,6 +513,44 @@ export async function deleteByExternalId(
     }
     await writeFile(file, `remove: ${t.title.slice(0, 60)}`);
     return { deleted: true };
+  });
+}
+
+/**
+ * Priorities CRUD. Lives in the same tasks.json alongside tasks so one
+ * git sync covers both. Validation (ids unique, ranks 1-based) is done
+ * at the API boundary.
+ *
+ * On first read with no priorities set, we seed a starter list so the UI
+ * has something meaningful immediately. The seed is persisted so edits
+ * stick 
+dash users can rename / reorder / delete freely.
+ */
+const DEFAULT_PRIORITIES: Priority[] = [
+  { id: "hiring", label: "Hiring", rank: 1, color: "rose" },
+  { id: "squad-support", label: "Squad Support", rank: 2, color: "amber" },
+  { id: "team-topology", label: "Team Topology", rank: 3, color: "emerald" },
+  { id: "internationalization", label: "Internationalization", rank: 4, color: "sky" },
+  { id: "engineering-metrics", label: "Engineering Metrics", rank: 5, color: "violet" },
+];
+
+export async function getPriorities(): Promise<Priority[]> {
+  return serialize(async () => {
+    const file = await readFile();
+    if (!file.priorities) {
+      file.priorities = DEFAULT_PRIORITIES.slice();
+      await writeFile(file, "priorities: seed defaults");
+    }
+    return file.priorities.slice().sort((a, b) => a.rank - b.rank);
+  });
+}
+
+export async function savePriorities(priorities: Priority[]): Promise<Priority[]> {
+  return serialize(async () => {
+    const file = await readFile();
+    file.priorities = priorities;
+    await writeFile(file, `priorities: update (${priorities.length})`);
+    return priorities.slice().sort((a, b) => a.rank - b.rank);
   });
 }
 
