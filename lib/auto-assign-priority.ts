@@ -1,37 +1,47 @@
 import type { Priority, Task } from "./types";
 
 /**
- * Keyword-based priority auto-assignment. Deterministic, local, zero
- * network — scans title + notes + sourceRef for terms that strongly
- * imply a priority and returns the highest-scoring candidate.
+ * Priority auto-assignment. Deterministic, local, zero network.
  *
- * Scoring:
- *   - Title / sourceRef hit = 3 pts, notes hit = 1 pt
- *   - Multiple hits accumulate; the priority with the highest score wins
- *   - A single hit is enough to assign (score >= MIN_SCORE below)
+ * Uses the same richer task metadata that the existing bucket-grouping
+ * logic consumes (source, sourceRef, url) rather than title keywords
+ * alone — so a card like "Six Pager - Swarmia/Jellyfish/Coderabbit"
+ * (no literal "metrics" / "DORA" in the title) still lands in
+ * Engineering Metrics via the Swarmia / Jellyfish vendor hits, and a
+ * Jira ticket keyed HIRE-123 lands in Hiring via the project prefix.
  *
- * Keyword sources:
- *   1. Built-in table for the five seeded priority ids (hiring,
- *      squad-support, team-topology, internationalization,
- *      engineering-metrics). Hand-curated to minimize false positives
- *      (e.g. "PR" is NOT in squad-support because it collides with too
- *      much — "code review" / "1:1" / "retro" are specific enough).
- *   2. For any priority (seeded or user-added), the label's own words
- *      (>= 4 chars) are added as fuzzy keywords. So renaming a priority
- *      to "Platform Reliability" automatically catches "platform" and
- *      "reliability" in task titles.
+ * Signals scanned, in order of weight:
+ *   - Jira project key prefix in sourceRef (e.g. "HIRE-123" → hiring)
+ *     → 5 pts (strongest; project keys are curated by humans and rarely
+ *     collide across priorities)
+ *   - URL hostname match (jobs.ashbyhq.com → hiring) → 4 pts
+ *   - Title / sourceRef keyword hit → 3 pts
+ *   - Notes keyword hit → 1 pt
+ *
+ * The priority with the highest total wins (threshold = 3, so a single
+ * title hit is enough). Retired priorities are skipped.
+ *
+ * Keyword / signal sources per priority:
+ *   1. Built-in keyword table (phrases, product names, vendors) tuned
+ *      for low false-positive rate.
+ *   2. Built-in Jira project key prefixes.
+ *   3. Built-in URL hostname fragments.
+ *   4. For any priority, the label's own words (>= 4 chars) are added
+ *      as fuzzy keywords, so renaming "Engineering Metrics" to
+ *      "Platform Reliability" immediately catches "platform" /
+ *      "reliability" with no further configuration.
  *
  * Call sites:
  *   - POST /api/tasks (new task) — only when the caller didn't set
  *     priorityId explicitly
- *   - Settings "Backfill priorities" — sweep across unassigned tasks
+ *   - POST /api/priorities/auto-assign (backfill / re-score sweep)
  */
 
 const MIN_SCORE = 3;
 
 // Keywords tuned for low false-positive rate — prefer multi-word phrases
 // and distinctive single terms over generic words. Matched as case-
-// insensitive word-boundary regex ( \b{term}\b ).
+// insensitive word-boundary regex (\b{term}\b).
 const BUILT_IN_KEYWORDS: Record<string, string[]> = {
   hiring: [
     "hire",
@@ -58,6 +68,17 @@ const BUILT_IN_KEYWORDS: Record<string, string[]> = {
     "interviewer",
     "backchannel",
     "pepperhire",
+    // ATS / sourcing vendors — common in Jira links, Lattice goals,
+    // calendar event titles.
+    "greenhouse",
+    "lever",
+    "ashby",
+    "gem",
+    "rippling",
+    "workable",
+    "hackerrank",
+    "codesignal",
+    "karat",
   ],
   "squad-support": [
     "1:1",
@@ -153,13 +174,87 @@ const BUILT_IN_KEYWORDS: Record<string, string[]> = {
     "p99",
     "slo",
     "sli",
+    // Engineering intelligence / productivity vendors — strong signal:
+    // if a card mentions Swarmia or Jellyfish by name it's almost
+    // certainly engineering-metrics work.
+    "swarmia",
+    "jellyfish",
+    "linearb",
+    "faros",
+    "getdx",
+    "haystack",
+    "coderabbit",
+    "code climate",
+    "codeclimate",
+    "sleuth",
+    "waydev",
+    "pluralsight flow",
+    "gitprime",
+    "allstacks",
+  ],
+};
+
+/**
+ * Jira project key prefixes (uppercase, without the trailing dash). A
+ * sourceRef that contains "HIRE-123" or "I18N-45" is a very strong
+ * signal — project keys are set up intentionally and rarely overlap
+ * across priority areas.
+ */
+const BUILT_IN_JIRA_KEYS: Record<string, string[]> = {
+  hiring: ["HIRE", "HIRING", "TA", "RECRUIT"],
+  "squad-support": [],
+  "team-topology": ["ORG", "TOPO"],
+  internationalization: ["I18N", "L10N", "INTL"],
+  "engineering-metrics": ["METRICS", "DORA", "EM"],
+};
+
+/**
+ * URL hostname substrings. Matched case-insensitively against the
+ * task's url field. Keep these distinctive enough that a casual mention
+ * (e.g. a link to a vendor's blog post) doesn't trigger a false hit on
+ * an unrelated card — most entries here are product consoles, not
+ * marketing sites.
+ */
+const BUILT_IN_URL_HOSTS: Record<string, string[]> = {
+  hiring: [
+    "greenhouse.io",
+    "ashbyhq.com",
+    "lever.co",
+    "gem.com",
+    "workable.com",
+    "hackerrank.com",
+    "codesignal.com",
+    "karat.com",
+  ],
+  "squad-support": [
+    // Lattice 1:1 / review surfaces — common for Squad Support work.
+    "latticehq.com",
+    "lattice.com",
+  ],
+  "team-topology": [],
+  internationalization: [
+    "lokalise.com",
+    "phrase.com",
+    "crowdin.com",
+    "transifex.com",
+  ],
+  "engineering-metrics": [
+    "swarmia.com",
+    "jellyfish.co",
+    "linearb.io",
+    "faros.ai",
+    "getdx.com",
+    "haystack.sh",
+    "coderabbit.ai",
+    "sleuth.io",
   ],
 };
 
 export interface AssignmentResult {
   priorityId: string;
   score: number;
-  /** Terms that fired, for debugging / explainability. */
+  /** Terms / signals that fired, for debugging / explainability. Each
+   *  entry is either a keyword, "host:<fragment>", or "jira:<KEY>". */
   evidence: string[];
 }
 
@@ -169,7 +264,7 @@ export interface AssignmentResult {
  * they can't win and newly-added ones participate immediately.
  */
 export function suggestPriority(
-  task: Pick<Task, "title" | "notes" | "sourceRef">,
+  task: Pick<Task, "title" | "notes" | "sourceRef" | "url" | "source">,
   priorities: Priority[],
 ): AssignmentResult | null {
   const title = (task.title ?? "").toLowerCase();
@@ -179,17 +274,40 @@ export function suggestPriority(
   // human-visible origin blurb (e.g. "In Jira HIRE-123") which is a
   // strong signal.
   const strongText = `${title}\n${sourceRef}`;
+  const host = extractHost(task.url);
+  const jiraKeysInRef = extractJiraKeys(task.sourceRef ?? "");
 
   let best: AssignmentResult | null = null;
 
   for (const p of priorities) {
     if (p.retired) continue;
-    const keywords = keywordsFor(p);
-    if (keywords.length === 0) continue;
 
     let score = 0;
     const evidence: string[] = [];
-    for (const kw of keywords) {
+
+    // (1) Jira project key — strongest signal.
+    const jiraKeys = BUILT_IN_JIRA_KEYS[p.id] ?? [];
+    for (const key of jiraKeys) {
+      if (jiraKeysInRef.includes(key)) {
+        score += 5;
+        evidence.push(`jira:${key}`);
+      }
+    }
+
+    // (2) URL hostname.
+    const hosts = BUILT_IN_URL_HOSTS[p.id] ?? [];
+    if (host) {
+      for (const h of hosts) {
+        if (host === h || host.endsWith(`.${h}`) || host.includes(h)) {
+          score += 4;
+          evidence.push(`host:${h}`);
+          break; // one hostname can't double-count for the same priority
+        }
+      }
+    }
+
+    // (3) Keyword hits — title/sourceRef and notes.
+    for (const kw of keywordsFor(p)) {
       const re = buildKeywordRegex(kw);
       if (re.test(strongText)) {
         score += 3;
@@ -211,8 +329,8 @@ export function suggestPriority(
 /**
  * Union of built-in keywords (if any) and label-derived words. Label
  * words >= 4 chars catch user-renamed priorities ("Platform
- * Reliability" picks up "platform" + "reliability") without the user
- * having to configure anything.
+ * Reliability" picks up "platform" + "reliability") without any
+ * further configuration.
  */
 function keywordsFor(p: Priority): string[] {
   const builtIn = BUILT_IN_KEYWORDS[p.id] ?? [];
@@ -220,7 +338,6 @@ function keywordsFor(p: Priority): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length >= 4);
-  // De-dup while preserving order.
   const seen = new Set<string>();
   const out: string[] = [];
   for (const kw of [...builtIn, ...fromLabel]) {
@@ -236,12 +353,42 @@ function keywordsFor(p: Priority): string[] {
  * Build a case-insensitive matcher. For keywords made of word chars
  * only, use \b anchors. For keywords containing punctuation / digits
  * (like "1:1", "l10n", "re-org"), fall back to a looser boundary
- * (whitespace or string edge) so the characters inside aren't treated
- * as word breaks that break the match.
+ * (whitespace or string edge) so the embedded characters aren't
+ * treated as word breaks that break the match.
  */
 function buildKeywordRegex(kw: string): RegExp {
   const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const alnumOnly = /^[a-z0-9]+$/i.test(kw);
   const pattern = alnumOnly ? `\\b${escaped}\\b` : `(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`;
   return new RegExp(pattern, "i");
+}
+
+/**
+ * Pull out hostname (without protocol / path) from a URL field, lower-
+ * cased. Returns null for non-URL / malformed values so hostname
+ * matching silently no-ops rather than throwing on bad data.
+ */
+function extractHost(url?: string): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find Jira-style project key prefixes in free text. Matches tokens of
+ * the form LETTERS-DIGITS (e.g. HIRE-123) and returns the uppercase
+ * letter portion. Duplicates are collapsed so a sourceRef mentioning
+ * HIRE-1 and HIRE-2 only contributes once per priority.
+ */
+function extractJiraKeys(text: string): string[] {
+  const matches = text.match(/\b[A-Z][A-Z0-9]{1,10}-\d+\b/g) ?? [];
+  const keys = new Set<string>();
+  for (const m of matches) {
+    const prefix = m.split("-")[0];
+    if (prefix) keys.add(prefix);
+  }
+  return [...keys];
 }
