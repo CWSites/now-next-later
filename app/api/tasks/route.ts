@@ -35,9 +35,12 @@ export async function POST(req: Request) {
   }
   // Only auto-assign when the caller didn't pick a priority themselves.
   // Users typing a task from the Add input never set one; adapters may
-  // in future, so we respect any value they pass.
+  // in future, so we respect any value they pass. Reading-list items
+  // (category === "book") are also exempt because a priority badge on a
+  // book is just noise.
+
   let input = parsed.data;
-  if (!input.priorityId) {
+  if (!input.priorityId && input.category !== "book") {
     const priorities = await getPriorities();
     const suggestion = suggestPriority(input, priorities);
     if (suggestion) {

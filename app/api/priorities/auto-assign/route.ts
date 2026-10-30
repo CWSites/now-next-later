@@ -44,6 +44,10 @@ export async function POST(req: Request) {
     // Skip completed/archived tasks — rescoring stale items creates
     // noise and risks dragging historical work into current priorities.
     if (t.completed || t.archived) continue;
+    // Reading-list items (category === "book") are an orthogonal
+    // sub-grouping, not work. A priority badge on a book is noise, so
+    // the sweep never touches them on either pass (fresh or re-score).
+    if (t.category === "book") continue;
     if (t.priorityId && !overwrite) continue;
     considered++;
 

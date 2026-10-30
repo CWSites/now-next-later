@@ -523,8 +523,7 @@ export async function deleteByExternalId(
  *
  * On first read with no priorities set, we seed a starter list so the UI
  * has something meaningful immediately. The seed is persisted so edits
- * stick 
-dash users can rename / reorder / delete freely.
+ * stick and users can rename / reorder / delete freely.
  */
 const DEFAULT_PRIORITIES: Priority[] = [
   { id: "hiring", label: "Hiring", rank: 1, color: "rose" },
