@@ -139,7 +139,11 @@ export function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group relative flex items-start gap-2.5 rounded-lg border px-2.5 py-2 text-sm cursor-grab touch-none select-none transition-all duration-300 ease-out active:cursor-grabbing hover:-translate-y-px hover:shadow-md ${
+      // Raise the host li's stacking context when the picker is open so the
+      // popover escapes neighboring cards (dnd-kit's transform on each card
+      // creates its own stacking context, which z-10 on the popover alone
+      // can't climb out of).
+      className={`group relative flex items-start gap-2.5 rounded-lg border px-2.5 py-2 text-sm cursor-grab touch-none select-none transition-all duration-300 ease-out active:cursor-grabbing hover:-translate-y-px hover:shadow-md ${pickerOpen ? "z-30" : ""} ${
         dragging
           ? "ring-2 ring-blue-400 border-blue-200 bg-white shadow-xl scale-[1.02] dark:border-blue-800 dark:bg-neutral-900"
           : justMerged
@@ -257,7 +261,7 @@ export function TaskCard({
           <div
             ref={pickerRef}
             onPointerDown={(e) => e.stopPropagation()}
-            className="absolute right-2 top-8 z-10 w-52 rounded-md border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+            className="absolute right-2 top-8 z-50 w-52 rounded-md border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
           >
             {priorities
               .filter((p) => !p.retired || p.id === task.priorityId)

@@ -37,6 +37,34 @@ export function PrioritiesForm({ initial }: Props) {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
+
+  async function runBackfill(opts: { dryRun: boolean; overwrite: boolean }) {
+    setBackfilling(true);
+    setBackfillResult(null);
+    try {
+      const res = await fetch("/api/priorities/auto-assign", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(opts),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setBackfillResult(`❌ ${JSON.stringify(body.error ?? body)}`);
+        return;
+      }
+      const verb = opts.dryRun ? "Would assign" : "Assigned";
+      const scopeNote = opts.overwrite ? " (incl. re-scored)" : "";
+      setBackfillResult(
+        `${verb} ${body.assigned} of ${body.considered} task(s)${scopeNote}. Reload the board to see badges.`,
+      );
+    } catch (err) {
+      setBackfillResult(`❌ ${(err as Error).message}`);
+    } finally {
+      setBackfilling(false);
+    }
+  }
 
   function patch(id: string, p: Partial<Priority>) {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...p } : it)));
@@ -211,6 +239,47 @@ export function PrioritiesForm({ initial }: Props) {
           {saving ? "Saving…" : "Save priorities"}
         </button>
         {status ? <span className="text-xs text-neutral-500">{status}</span> : null}
+      </div>
+
+      <div className="mt-8 rounded-md border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
+        <h3 className="text-sm font-semibold">Auto-assign</h3>
+        <p className="mt-1 text-xs text-neutral-500">
+          Scans unassigned tasks for keywords matching your priorities (hiring,
+          i18n, DORA, etc. — plus any distinctive words in the labels above) and
+          tags matches. Dry-run first to preview; new tasks created from here on
+          auto-tag at creation time regardless.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => runBackfill({ dryRun: true, overwrite: false })}
+            disabled={backfilling}
+            className="rounded border border-neutral-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-950 dark:hover:bg-neutral-800"
+          >
+            Dry run
+          </button>
+          <button
+            type="button"
+            onClick={() => runBackfill({ dryRun: false, overwrite: false })}
+            disabled={backfilling}
+            className="rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:border-neutral-200 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+          >
+            Backfill unassigned
+          </button>
+          <button
+            type="button"
+            onClick={() => runBackfill({ dryRun: false, overwrite: true })}
+            disabled={backfilling}
+            title="Re-scores tasks that already have a priority and overwrites if a different priority matches more strongly"
+            className="rounded border border-amber-400 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100 dark:hover:bg-amber-900/50"
+          >
+            Re-score all
+          </button>
+          {backfilling ? <span className="text-xs text-neutral-500">Working…</span> : null}
+          {backfillResult ? (
+            <span className="text-xs text-neutral-500">{backfillResult}</span>
+          ) : null}
+        </div>
       </div>
     </section>
   );

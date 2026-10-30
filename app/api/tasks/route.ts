@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createTask, getAllTasks, REPO_ROOT } from "@/lib/storage";
+import { createTask, getAllTasks, getPriorities, REPO_ROOT } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
+import { suggestPriority } from "@/lib/auto-assign-priority";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,17 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const task = await createTask(parsed.data);
+  // Only auto-assign when the caller didn't pick a priority themselves.
+  // Users typing a task from the Add input never set one; adapters may
+  // in future, so we respect any value they pass.
+  let input = parsed.data;
+  if (!input.priorityId) {
+    const priorities = await getPriorities();
+    const suggestion = suggestPriority(input, priorities);
+    if (suggestion) {
+      input = { ...input, priorityId: suggestion.priorityId };
+    }
+  }
+  const task = await createTask(input);
   return NextResponse.json({ task }, { status: 201 });
 }
