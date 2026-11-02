@@ -598,12 +598,12 @@ export function Board({ initialTasks, initialPriorities }: Props) {
         }
       }
       if (!target) return;
-      const active = tasks.find((t) => t.id === activeIdStr);
-      if (!active) return;
+      const activeTask = tasks.find((t) => t.id === activeIdStr);
+      if (!activeTask) return;
       // No-op when the card is already in the target lane.
       if (
-        (active.priorityId ?? null) === target.priorityId &&
-        active.bucket === target.bucket
+        (activeTask.priorityId ?? null) === target.priorityId &&
+        activeTask.bucket === target.bucket
       ) {
         return;
       }
