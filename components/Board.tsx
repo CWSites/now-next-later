@@ -798,13 +798,18 @@ export function Board({ initialTasks, initialPriorities }: Props) {
           <TabButton active={view === "swimlanes"} onClick={() => setView("swimlanes")}>
             Swim lanes
           </TabButton>
-          <TabButton active={view === "done"} onClick={() => setView("done")}>
-            Completed
-            {recentlyDone.today.length + recentlyDone.earlierThisWeek.length > 0 ? (
-              <span className="ml-1.5 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                {recentlyDone.today.length + recentlyDone.earlierThisWeek.length}
-              </span>
-            ) : null}
+          <TabButton active={view === "jira"} onClick={() => setView("jira")}>
+            Jira
+            {(() => {
+              const open = tasks.filter(
+                (t) => t.source === "jira" && !t.completed,
+              ).length;
+              return open > 0 ? (
+                <span className="ml-1.5 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                  {open}
+                </span>
+              ) : null;
+            })()}
           </TabButton>
           <TabButton active={view === "reading"} onClick={() => setView("reading")}>
             Reading
@@ -819,18 +824,13 @@ export function Board({ initialTasks, initialPriorities }: Props) {
               ) : null;
             })()}
           </TabButton>
-          <TabButton active={view === "jira"} onClick={() => setView("jira")}>
-            Jira
-            {(() => {
-              const open = tasks.filter(
-                (t) => t.source === "jira" && !t.completed,
-              ).length;
-              return open > 0 ? (
-                <span className="ml-1.5 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950 dark:text-sky-300">
-                  {open}
-                </span>
-              ) : null;
-            })()}
+          <TabButton active={view === "done"} onClick={() => setView("done")}>
+            Completed
+            {recentlyDone.today.length + recentlyDone.earlierThisWeek.length > 0 ? (
+              <span className="ml-1.5 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                {recentlyDone.today.length + recentlyDone.earlierThisWeek.length}
+              </span>
+            ) : null}
           </TabButton>
         </div>
         <div className="flex items-center gap-2 pb-2">
