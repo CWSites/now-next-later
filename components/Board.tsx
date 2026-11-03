@@ -29,6 +29,7 @@ import type { MergeSnapshot } from "@/lib/storage";
 import { BUCKETS, Bucket, Priority, Task } from "@/lib/types";
 import { Column } from "./Column";
 import { SwimLanes, parseSwimCellId, UNASSIGNED_LANE_ID } from "./SwimLanes";
+import { ReadingList } from "./ReadingList";
 import { TaskCard } from "./TaskCard";
 import { RecentlyDone } from "./RecentlyDone";
 import { IcalDate } from "./IcalDate";
@@ -126,10 +127,15 @@ export function Board({ initialTasks, initialPriorities }: Props) {
   // 'board' is the original three-column layout; 'swimlanes' is the
   // priority-by-bucket grid. Choice persists to localStorage so a
   // reload keeps the user's preferred layout.
-  const [view, setView] = useState<"board" | "swimlanes" | "done">(() => {
+  const [view, setView] = useState<
+    "board" | "swimlanes" | "done" | "reading"
+  >(() => {
     if (typeof window === "undefined") return "board";
     const stored = window.localStorage.getItem("nnl-view");
-    return stored === "swimlanes" || stored === "done" || stored === "board"
+    return stored === "swimlanes" ||
+      stored === "done" ||
+      stored === "board" ||
+      stored === "reading"
       ? stored
       : "board";
   });
@@ -798,6 +804,19 @@ export function Board({ initialTasks, initialPriorities }: Props) {
               </span>
             ) : null}
           </TabButton>
+          <TabButton active={view === "reading"} onClick={() => setView("reading")}>
+            Reading
+            {(() => {
+              const unread = tasks.filter(
+                (t) => t.category === "book" && !t.completed,
+              ).length;
+              return unread > 0 ? (
+                <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+                  {unread}
+                </span>
+              ) : null;
+            })()}
+          </TabButton>
         </div>
         <div className="flex items-center gap-2 pb-2">
           {lastResult || lastErrors.length > 0 ? (
@@ -849,16 +868,15 @@ export function Board({ initialTasks, initialPriorities }: Props) {
           // tickets (source === 'jira') into a read-only section. Other
           // buckets ignore both.
           const bucketTasks = grouped[bucket];
-          const isLater = bucket === "later";
           const isNow = bucket === "now";
-          const bookTasks = isLater
-            ? bucketTasks.filter((t) => t.category === "book")
-            : [];
+          // Books live in their own Reading tab now, so they're filtered
+          // out of every bucket column here. Covers stale data where a
+          // book was dropped into Now/Next before the Reading tab existed.
           const jiraTasks = isNow
             ? bucketTasks.filter((t) => t.category !== "book" && t.source === "jira")
             : [];
           const mainTasks = bucketTasks.filter((t) => {
-            if (isLater && t.category === "book") return false;
+            if (t.category === "book") return false;
             if (isNow && t.source === "jira") return false;
             return true;
           });
@@ -879,35 +897,25 @@ export function Board({ initialTasks, initialPriorities }: Props) {
                 onDelete={deleteTask}
                 flashMergedId={flashMergedId}
                 justArrivedIds={justArrivedIdSet}
-                onToggleBook={
-                  isLater
-                    ? (task) =>
-                        updateTask(task.id, {
-                          category: task.category === "book" ? null : "book",
-                        })
-                    : undefined
+                // Every card gets the book toggle so a task can be
+                // sent to Reading from any bucket. The Reading tab is
+                // where you flip it back off.
+                onToggleBook={(task) =>
+                  updateTask(task.id, {
+                    category: task.category === "book" ? null : "book",
+                  })
                 }
                 subsection={
-                  isLater
+                  isNow && jiraTasks.length > 0
                     ? {
-                        id: "later-books",
-                        label: "Reading list",
-                        emoji: "📚",
-                        inputPlaceholder: "Add a book…",
-                        tasks: bookTasks,
-                        onCreate: (title) =>
-                          createTask(title, bucket, undefined, "book"),
+                        id: "now-jira",
+                        label: "Jira tickets",
+                        iconSrc: "/logos/jira.svg",
+                        tasks: jiraTasks,
+                        showInput: false,
+                        highlight: "sky",
                       }
-                    : isNow && jiraTasks.length > 0
-                      ? {
-                          id: "now-jira",
-                          label: "Jira tickets",
-                          iconSrc: "/logos/jira.svg",
-                          tasks: jiraTasks,
-                          showInput: false,
-                          highlight: "sky",
-                        }
-                      : undefined
+                    : undefined
                 }
               />
             </SortableContext>
@@ -951,6 +959,22 @@ export function Board({ initialTasks, initialPriorities }: Props) {
             </button>
           ) : null}
         </div>
+      ) : null}
+      {view === "reading" ? (
+        <ReadingList
+          tasks={tasks}
+          priorities={priorities}
+          onCreate={(title) =>
+            createTask(title, "later", undefined, "book")
+          }
+          onUpdate={updateTask}
+          onDelete={deleteTask}
+          onToggleBook={(task) =>
+            updateTask(task.id, {
+              category: task.category === "book" ? null : "book",
+            })
+          }
+        />
       ) : null}
       {view === "swimlanes" ? (
         <SwimLanes
