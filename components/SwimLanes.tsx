@@ -147,7 +147,10 @@ export function SwimLanes({
     <div className="overflow-x-auto">
       <div className="min-w-[720px]">
         {/* Header row: priority column + three bucket columns. */}
-        <div className="sticky top-0 z-10 grid grid-cols-[160px_1fr_1fr_1fr] gap-2 border-b border-neutral-200 bg-white/80 py-2 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/80">
+        {/* minmax(0, 1fr) prevents long task titles from pushing a
+            bucket column past its 1fr share. Default 1fr resolves to
+            minmax(auto, 1fr), which treats content as the lower bound. */}
+        <div className="sticky top-0 z-10 grid grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-neutral-200 bg-white/80 py-2 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/80">
           <div className="px-1 text-[11px] uppercase tracking-wider text-neutral-400">
             Priority
           </div>
@@ -165,7 +168,7 @@ export function SwimLanes({
           {rows.map((row) => (
             <div
               key={row.key}
-              className="grid grid-cols-[160px_1fr_1fr_1fr] gap-2"
+              className="grid grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2"
             >
               {/* Left column: priority label + rank badge. */}
               <div className="flex items-start pt-2">
