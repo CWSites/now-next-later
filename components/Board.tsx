@@ -30,6 +30,7 @@ import { BUCKETS, Bucket, Priority, Task } from "@/lib/types";
 import { Column } from "./Column";
 import { SwimLanes, parseSwimCellId, UNASSIGNED_LANE_ID } from "./SwimLanes";
 import { ReadingList } from "./ReadingList";
+import { JiraTickets } from "./JiraTickets";
 import { TaskCard } from "./TaskCard";
 import { RecentlyDone } from "./RecentlyDone";
 import { IcalDate } from "./IcalDate";
@@ -128,14 +129,15 @@ export function Board({ initialTasks, initialPriorities }: Props) {
   // priority-by-bucket grid. Choice persists to localStorage so a
   // reload keeps the user's preferred layout.
   const [view, setView] = useState<
-    "board" | "swimlanes" | "done" | "reading"
+    "board" | "swimlanes" | "done" | "reading" | "jira"
   >(() => {
     if (typeof window === "undefined") return "board";
     const stored = window.localStorage.getItem("nnl-view");
     return stored === "swimlanes" ||
       stored === "done" ||
       stored === "board" ||
-      stored === "reading"
+      stored === "reading" ||
+      stored === "jira"
       ? stored
       : "board";
   });
@@ -817,6 +819,19 @@ export function Board({ initialTasks, initialPriorities }: Props) {
               ) : null;
             })()}
           </TabButton>
+          <TabButton active={view === "jira"} onClick={() => setView("jira")}>
+            Jira
+            {(() => {
+              const open = tasks.filter(
+                (t) => t.source === "jira" && !t.completed,
+              ).length;
+              return open > 0 ? (
+                <span className="ml-1.5 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                  {open}
+                </span>
+              ) : null;
+            })()}
+          </TabButton>
         </div>
         <div className="flex items-center gap-2 pb-2">
           {lastResult || lastErrors.length > 0 ? (
@@ -868,16 +883,13 @@ export function Board({ initialTasks, initialPriorities }: Props) {
           // tickets (source === 'jira') into a read-only section. Other
           // buckets ignore both.
           const bucketTasks = grouped[bucket];
-          const isNow = bucket === "now";
-          // Books live in their own Reading tab now, so they're filtered
-          // out of every bucket column here. Covers stale data where a
-          // book was dropped into Now/Next before the Reading tab existed.
-          const jiraTasks = isNow
-            ? bucketTasks.filter((t) => t.category !== "book" && t.source === "jira")
-            : [];
+          // Books and Jira tickets each live in their own tab, so both
+          // are filtered out of every bucket column here. Covers stale
+          // data where either slipped into Now/Next before the tabs
+          // existed.
           const mainTasks = bucketTasks.filter((t) => {
             if (t.category === "book") return false;
-            if (isNow && t.source === "jira") return false;
+            if (t.source === "jira") return false;
             return true;
           });
 
@@ -905,18 +917,9 @@ export function Board({ initialTasks, initialPriorities }: Props) {
                     category: task.category === "book" ? null : "book",
                   })
                 }
-                subsection={
-                  isNow && jiraTasks.length > 0
-                    ? {
-                        id: "now-jira",
-                        label: "Jira tickets",
-                        iconSrc: "/logos/jira.svg",
-                        tasks: jiraTasks,
-                        showInput: false,
-                        highlight: "sky",
-                      }
-                    : undefined
-                }
+                // No bucket column has a sub-section anymore. Books
+                // live in Reading, Jira tickets live in Jira, both via
+                // top-level tabs.
               />
             </SortableContext>
           );
@@ -959,6 +962,14 @@ export function Board({ initialTasks, initialPriorities }: Props) {
             </button>
           ) : null}
         </div>
+      ) : null}
+      {view === "jira" ? (
+        <JiraTickets
+          tasks={tasks.filter((t) => !isArchivedForToday(t, new Date()))}
+          priorities={priorities}
+          onUpdate={updateTask}
+          onDelete={deleteTask}
+        />
       ) : null}
       {view === "reading" ? (
         <ReadingList
