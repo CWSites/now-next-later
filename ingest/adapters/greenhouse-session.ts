@@ -1,21 +1,16 @@
 import type { Adapter, IngestItem } from "./base";
-import { greenhouseAuthMode } from "@/lib/secrets";
 
 /**
  * Greenhouse recruiter-app (session-cookie) adapter.
  *
- * Fallback for users without Harvest API access. Reuses the recruiter's
- * live app*.greenhouse.io session cookie (populated by
- * `scripts/refresh-greenhouse-session.sh` via Settings → Greenhouse →
- * "Refresh session").
+ * Reuses the recruiter's live app*.greenhouse.io session cookie
+ * (populated by `scripts/refresh-greenhouse-session.sh` via Settings →
+ * Greenhouse → "Refresh session"). No Harvest API key required — session
+ * is the only auth path.
  *
- * Only runs when GREENHOUSE_API_KEY is UNSET and
- * GREENHOUSE_SESSION_COOKIE + GREENHOUSE_HOST are set. If both are
- * configured, the Harvest adapter wins — see `greenhouseAuthMode`.
- *
- * Persistence semantics match the Harvest adapter: this adapter never
- * emits `removedExternalIds`. Once a candidate is surfaced, the task stays
- * on the board until the user manually checks it off.
+ * This adapter never emits `removedExternalIds`. Once a candidate is
+ * surfaced, the task stays on the board until the user manually checks
+ * it off.
  *
  * Endpoint shape (reverse-engineered from app7.greenhouse.io's Birch UI,
  * confirmed live against a signed-in session):
@@ -40,14 +35,14 @@ export const greenhouseSessionAdapter: Adapter = {
   name: "greenhouse-session",
 
   enabled() {
-    if (greenhouseAuthMode() !== "session") return false;
-    return Boolean((process.env.GREENHOUSE_JOB_IDS ?? "").trim());
+    return Boolean(
+      (process.env.GREENHOUSE_HOST ?? "").trim() &&
+        (process.env.GREENHOUSE_SESSION_COOKIE ?? "").trim() &&
+        (process.env.GREENHOUSE_JOB_IDS ?? "").trim(),
+    );
   },
 
   disabledReason() {
-    if ((process.env.GREENHOUSE_API_KEY ?? "").trim()) {
-      return "Harvest API key is configured — the Harvest adapter handles Greenhouse.";
-    }
     if (!(process.env.GREENHOUSE_HOST ?? "").trim()) {
       return "Click Settings → Greenhouse → 'Refresh session' to populate the session cookie.";
     }

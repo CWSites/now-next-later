@@ -4,7 +4,6 @@ import { slackAdapter } from "./adapters/slack";
 import { gcalAdapter } from "./adapters/gcal";
 import { granolaAdapter } from "./adapters/granola";
 import { fellowAdapter } from "./adapters/fellow";
-import { greenhouseAdapter } from "./adapters/greenhouse";
 import { greenhouseSessionAdapter } from "./adapters/greenhouse-session";
 import { deleteByExternalId, getAllTasks, upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
@@ -22,7 +21,6 @@ const ADAPTERS: Adapter[] = [
   gcalAdapter,
   granolaAdapter,
   fellowAdapter,
-  greenhouseAdapter,
   greenhouseSessionAdapter,
 ];
 

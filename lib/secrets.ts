@@ -100,23 +100,6 @@ export const PROVIDERS: ProviderMeta[] = [
   },
 ];
 
-/**
- * Which Greenhouse auth mode to prefer when both sets of credentials are
- * present. Session creds are a fallback for users without Harvest API
- * access — if the user set up Harvest later, we don't want the session
- * adapter stealing the run.
- */
-export function greenhouseAuthMode(): "harvest" | "session" | "none" {
-  if ((process.env.GREENHOUSE_API_KEY ?? "").trim()) return "harvest";
-  if (
-    (process.env.GREENHOUSE_SESSION_COOKIE ?? "").trim() &&
-    (process.env.GREENHOUSE_HOST ?? "").trim()
-  ) {
-    return "session";
-  }
-  return "none";
-}
-
 export const SECRET_SCHEMA: SecretField[] = [
   {
     key: "JIRA_URL",
@@ -239,14 +222,6 @@ export const SECRET_SCHEMA: SecretField[] = [
     help: "Auto-populated when the 'Sync Lattice now' bookmarklet runs successfully.",
   },
   {
-    key: "GREENHOUSE_API_KEY",
-    label: "Greenhouse Harvest API key",
-    secret: true,
-    provider: "greenhouse",
-    help:
-      "Greenhouse admin → Dev Center → API Credential Management. Harvest key with scopes: Get: Candidate, Get: Application, Get: Job.",
-  },
-  {
     key: "GREENHOUSE_JOB_IDS",
     label: "Job IDs to watch",
     secret: false,
@@ -267,12 +242,12 @@ export const SECRET_SCHEMA: SecretField[] = [
   },
   {
     key: "GREENHOUSE_HOST",
-    label: "Greenhouse host (session mode)",
+    label: "Greenhouse host",
     secret: false,
     provider: "greenhouse",
     placeholder: "app7.greenhouse.io",
     help:
-      "Only used when you don't have Harvest API access. Your Greenhouse recruiter subdomain — auto-filled by the 'Refresh session' button if a Greenhouse tab is open.",
+      "Your Greenhouse recruiter subdomain — auto-filled by the 'Refresh session' button if a Greenhouse tab is open.",
   },
   {
     key: "GREENHOUSE_SESSION_COOKIE",

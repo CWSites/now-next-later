@@ -287,7 +287,7 @@ export function SettingsForm({
                           spellCheck={false}
                           placeholder={
                             field.isSet && field.secret
-                              ? `saved (${field.preview}) — paste to replace`
+                              ? field.preview
                               : (field.placeholder ?? "")
                           }
                           value={displayValue}
