@@ -12,7 +12,14 @@ import "server-only";
  * process.env.FOO keeps working.
  */
 
-export type Provider = "jira" | "slack" | "gcal" | "granola" | "fellow" | "lattice";
+export type Provider =
+  | "jira"
+  | "slack"
+  | "gcal"
+  | "granola"
+  | "fellow"
+  | "lattice"
+  | "greenhouse";
 
 export type FieldKind = "text" | "tags";
 
@@ -82,6 +89,14 @@ export const PROVIDERS: ProviderMeta[] = [
     emoji: "📊",
     domain: "lattice.com",
     description: "Open 1:1 action items. Manual sync via bookmarklet.",
+  },
+  {
+    id: "greenhouse",
+    label: "Greenhouse",
+    emoji: "🌱",
+    domain: "greenhouse.io",
+    description:
+      "Candidates in Application Review for configured jobs land in Now with the Hiring priority.",
   },
 ];
 
@@ -206,7 +221,33 @@ export const SECRET_SCHEMA: SecretField[] = [
     placeholder: "never (use the bookmarklet)",
     help: "Auto-populated when the 'Sync Lattice now' bookmarklet runs successfully.",
   },
-
+  {
+    key: "GREENHOUSE_API_KEY",
+    label: "Greenhouse Harvest API key",
+    secret: true,
+    provider: "greenhouse",
+    help:
+      "Greenhouse admin → Dev Center → API Credential Management. Harvest key with scopes: Get: Candidate, Get: Application, Get: Job.",
+  },
+  {
+    key: "GREENHOUSE_JOB_IDS",
+    label: "Job IDs to watch",
+    secret: false,
+    provider: "greenhouse",
+    kind: "tags",
+    placeholder: "4685796007",
+    help:
+      "Numeric job IDs. Find each in Greenhouse under the job's URL (/sdash/<id>). Only candidates in these jobs' Application Review stage are surfaced.",
+  },
+  {
+    key: "GREENHOUSE_STAGE_NAME",
+    label: "Stage to watch",
+    secret: false,
+    provider: "greenhouse",
+    placeholder: "Application Review",
+    help:
+      "Exact stage name to pull candidates from. Defaults to 'Application Review' if left empty.",
+  },
 ];
 
 /**

@@ -4,6 +4,7 @@ import { slackAdapter } from "./adapters/slack";
 import { gcalAdapter } from "./adapters/gcal";
 import { granolaAdapter } from "./adapters/granola";
 import { fellowAdapter } from "./adapters/fellow";
+import { greenhouseAdapter } from "./adapters/greenhouse";
 import { deleteByExternalId, getAllTasks, upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
 import { REPO_ROOT } from "@/lib/storage";
@@ -20,6 +21,7 @@ const ADAPTERS: Adapter[] = [
   gcalAdapter,
   granolaAdapter,
   fellowAdapter,
+  greenhouseAdapter,
 ];
 
 export interface IngestSummary {
