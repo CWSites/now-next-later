@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { SecretView, Provider, ProviderMeta } from "@/lib/secrets";
 import { SlackBookmarklet } from "@/components/SlackBookmarklet";
+import { GreenhouseSessionRefresh } from "@/components/GreenhouseSessionRefresh";
 import { LatticeBookmarklet } from "@/components/LatticeBookmarklet";
 import { TagInput } from "@/components/TagInput";
 import { HelpTip } from "@/components/HelpTip";
@@ -332,6 +333,11 @@ export function SettingsForm({
                   appOrigin={appOrigin}
                   workspaceMatch={slackWorkspaceMatch}
                 />
+              </div>
+            ) : null}
+            {p.id === "greenhouse" ? (
+              <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+                <GreenhouseSessionRefresh />
               </div>
             ) : null}
             {p.id === "lattice" ? (

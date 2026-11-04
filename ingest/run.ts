@@ -5,6 +5,7 @@ import { gcalAdapter } from "./adapters/gcal";
 import { granolaAdapter } from "./adapters/granola";
 import { fellowAdapter } from "./adapters/fellow";
 import { greenhouseAdapter } from "./adapters/greenhouse";
+import { greenhouseSessionAdapter } from "./adapters/greenhouse-session";
 import { deleteByExternalId, getAllTasks, upsertByExternalId } from "@/lib/storage";
 import { ensurePulled } from "@/lib/git-sync";
 import { REPO_ROOT } from "@/lib/storage";
@@ -22,6 +23,7 @@ const ADAPTERS: Adapter[] = [
   granolaAdapter,
   fellowAdapter,
   greenhouseAdapter,
+  greenhouseSessionAdapter,
 ];
 
 export interface IngestSummary {

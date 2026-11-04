@@ -100,6 +100,23 @@ export const PROVIDERS: ProviderMeta[] = [
   },
 ];
 
+/**
+ * Which Greenhouse auth mode to prefer when both sets of credentials are
+ * present. Session creds are a fallback for users without Harvest API
+ * access — if the user set up Harvest later, we don't want the session
+ * adapter stealing the run.
+ */
+export function greenhouseAuthMode(): "harvest" | "session" | "none" {
+  if ((process.env.GREENHOUSE_API_KEY ?? "").trim()) return "harvest";
+  if (
+    (process.env.GREENHOUSE_SESSION_COOKIE ?? "").trim() &&
+    (process.env.GREENHOUSE_HOST ?? "").trim()
+  ) {
+    return "session";
+  }
+  return "none";
+}
+
 export const SECRET_SCHEMA: SecretField[] = [
   {
     key: "JIRA_URL",
@@ -247,6 +264,31 @@ export const SECRET_SCHEMA: SecretField[] = [
     placeholder: "Application Review",
     help:
       "Exact stage name to pull candidates from. Defaults to 'Application Review' if left empty.",
+  },
+  {
+    key: "GREENHOUSE_HOST",
+    label: "Greenhouse host (session mode)",
+    secret: false,
+    provider: "greenhouse",
+    placeholder: "app7.greenhouse.io",
+    help:
+      "Only used when you don't have Harvest API access. Your Greenhouse recruiter subdomain — auto-filled by the 'Refresh session' button if a Greenhouse tab is open.",
+  },
+  {
+    key: "GREENHOUSE_SESSION_COOKIE",
+    label: "Greenhouse session cookie",
+    secret: true,
+    provider: "greenhouse",
+    help:
+      "Auto-populated by the 'Refresh session' button. Decrypted from Chrome's cookie DB. Expires with your Greenhouse SSO session; click Refresh when ingests start 401'ing.",
+  },
+  {
+    key: "GREENHOUSE_CSRF_TOKEN",
+    label: "Greenhouse CSRF token",
+    secret: true,
+    provider: "greenhouse",
+    help:
+      "Auto-populated alongside the session cookie. Required for any write/POST calls; read calls work with just the cookie.",
   },
 ];
 
