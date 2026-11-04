@@ -2,9 +2,8 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { applySecretsToEnv, getDisabledProviders, getSecretsView, PROVIDERS } from "@/lib/secrets";
 import { SettingsForm } from "@/components/SettingsForm";
-import { PrioritiesForm } from "@/components/PrioritiesForm";
+import { SettingsTabs } from "@/components/SettingsTabs";
 import { HelpTip } from "@/components/HelpTip";
-import { getPriorities } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +18,6 @@ export default async function SettingsPage({ searchParams }: Params) {
   await applySecretsToEnv();
   const settings = await getSecretsView();
   const disabledProviders = Array.from(getDisabledProviders());
-  const priorities = await getPriorities();
   const { gcal, fellow } = await searchParams;
   const h = await headers();
   const host = h.get("host") ?? "localhost:4823";
@@ -43,6 +41,7 @@ export default async function SettingsPage({ searchParams }: Params) {
           ← back to board
         </Link>
       </header>
+      <SettingsTabs active="integrations" />
       {gcal ? (
         <div
           className={`mb-4 rounded-md border p-3 text-sm ${
@@ -76,7 +75,6 @@ export default async function SettingsPage({ searchParams }: Params) {
         appOrigin={appOrigin}
         slackWorkspaceMatch={workspaceMatch}
       />
-      <PrioritiesForm initial={priorities} />
     </main>
   );
 }
