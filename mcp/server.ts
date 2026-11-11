@@ -6,8 +6,8 @@
  *
  *   "mcpServers": {
  *     "now-next-later": {
- *       "command": "npx",
- *       "args": ["tsx", "/absolute/path/to/now-next-later/mcp/server.ts"],
+ *       "command": "yarn",
+ *       "args": ["--cwd", "/absolute/path/to/now-next-later", "tsx", "mcp/server.ts"],
  *       "env": { "DATA_REPO_PATH": "/absolute/path/to/now-next-later" }
  *     }
  *   }

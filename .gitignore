@@ -12,3 +12,11 @@ tsconfig.tsbuildinfo
 data/tasks.json
 data/learned-dedup-rules.json
 scripts/__pycache__/
+
+# Yarn Berry (PnP) — commit only the release/plugin/sdk shims, never caches/unplugged
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

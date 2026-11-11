@@ -32,7 +32,13 @@ STAGED_LIST=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$STAGED_LIST" ] && exit 0
 
 # Files to skip (binary blobs, lockfiles, generated assets).
-SKIP_RE='(^|/)(package-lock\.json|yarn-lock\.yaml|yarn\.lock|pnpm-lock\.yaml)$|\.(min\.js|map|png|jpg|jpeg|gif|ico|webp|svg|woff2?|ttf|otf|eot|pdf|zip|gz|tgz|bz2|7z|mp4|mov|mp3|wav)$'
+#
+# .pnp.cjs / .pnp.loader.mjs are Yarn Berry's generated PnP runtime —
+# they embed base64-encoded WASM blobs that incidentally match patterns
+# like AKIA[A-Z0-9]{16}. The files are machine-regenerated on every
+# `yarn install`, so secret-scanning their body is both pointless and
+# produces guaranteed false positives.
+SKIP_RE='(^|/)(package-lock\.json|yarn-lock\.yaml|yarn\.lock|pnpm-lock\.yaml|\.pnp\.cjs|\.pnp\.loader\.mjs)$|\.(min\.js|map|png|jpg|jpeg|gif|ico|webp|svg|woff2?|ttf|otf|eot|pdf|zip|gz|tgz|bz2|7z|mp4|mov|mp3|wav)$'
 
 # Generic secret patterns. Each: LABEL<TAB>REGEX. Payload-length anchors
 # keep false-positive rate near zero — prefix mentions like "xoxc-" in
