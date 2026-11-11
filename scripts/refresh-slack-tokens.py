@@ -240,54 +240,137 @@ def try_firefox(workspace_match: str) -> Iterable[TokenPair]:
 # -------------------------------------------------------------------- Chrome
 
 
-def _applescript_xoxc() -> str | None:
-    script = r"""
-tell application "Google Chrome"
-  repeat with w in windows
-    repeat with t in tabs of w
-      if (URL of t) starts with "https://app.slack.com/" then
-        return execute t javascript "Object.values(JSON.parse(localStorage.localConfig_v2).teams).find(x => x.token.startsWith('xoxc-')).token"
-      end if
-    end repeat
-  end repeat
-  return ""
-end tell
-"""
+def _chrome_run_js(js: str, timeout: int = 10) -> tuple[str, str]:
+    """Execute `js` in the first signed-in Slack tab found in Chrome.
+    Returns (stdout, stderr). stdout is empty if no Slack tab was found.
+    """
+    # AppleScript string-escape: backslash and double-quote.
+    js_as = js.replace("\\", "\\\\").replace('"', '\\"')
+    script = (
+        'tell application "Google Chrome"\n'
+        '  repeat with w in windows\n'
+        '    repeat with t in tabs of w\n'
+        '      if (URL of t) starts with "https://app.slack.com/" then\n'
+        f'        return execute t javascript "{js_as}"\n'
+        '      end if\n'
+        '    end repeat\n'
+        '  end repeat\n'
+        '  return ""\n'
+        'end tell\n'
+    )
     try:
         out = subprocess.run(
             ["osascript", "-e", script],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=timeout,
         )
     except FileNotFoundError:
-        return None
-    tok = (out.stdout or "").strip()
+        return "", "osascript missing"
+    except subprocess.TimeoutExpired:
+        return "", "osascript timeout"
+    return (out.stdout or "").strip(), (out.stderr or "").strip()
+
+
+def _applescript_xoxc(workspace_match: str) -> str | None:
+    m = workspace_match.lower()
+    # Pick the team whose domain/name matches workspace_match; fall back to
+    # the first xoxc- team if no match string was supplied.
+    js = (
+        "(function(){"
+        "var teams=Object.values(JSON.parse(localStorage.localConfig_v2).teams);"
+        f"var m={json.dumps(m)};"
+        "var hit=m?teams.find(function(x){var d=(x.domain||'').toLowerCase(),n=(x.name||'').toLowerCase();return d.indexOf(m)>=0||n.indexOf(m)>=0;}):teams.find(function(x){return (x.token||'').indexOf('xoxc-')===0;});"
+        "return hit&&hit.token&&hit.token.indexOf('xoxc-')===0?hit.token:'';"
+        "})()"
+    )
+    tok, err = _chrome_run_js(js)
     if tok.startswith("xoxc-"):
         return tok
-    err = (out.stderr or "").strip() or "(no stderr)"
     log(f"chrome: AppleScript did not return xoxc ({err or 'empty'})")
     return None
 
 
-def _chrome_xoxd() -> str | None:
+def _chrome_live_authtest(xoxc: str) -> bool:
+    """Run auth.test inside the Slack tab so the browser attaches the LIVE
+    (in-memory) `d` cookie. Confirms the signed-in session is valid even when
+    Chrome hasn't flushed `d` to the on-disk Cookies DB yet.
+
+    Uses a window-scoped promise + polling because osascript executes JS
+    synchronously and will not await a Promise.
+    """
+    kick = (
+        "(function(){"
+        "window.__slackMcpAuth=null;"
+        # Same-origin: app.slack.com forwards /api/* to the Slack API.
+        # Hitting slack.com/api/auth.test directly from an app.slack.com tab
+        # fails CORS ("Failed to fetch"), which the old script treated as an
+        # invalid session when the session was actually fine.
+        "fetch('/api/auth.test',{"
+        "method:'POST',credentials:'include',"
+        f"headers:{{Authorization:'Bearer '+{json.dumps(xoxc)}}}"
+        "}).then(function(r){return r.json();})"
+        ".then(function(j){window.__slackMcpAuth=j;})"
+        ".catch(function(e){window.__slackMcpAuth={ok:false,error:String(e)};});"
+        "return 'kicked';"
+        "})()"
+    )
+    out, _ = _chrome_run_js(kick)
+    if out != "kicked":
+        return False
+    poll = "JSON.stringify(window.__slackMcpAuth)"
+    for _ in range(20):  # ~10s
+        time.sleep(0.5)
+        out, _ = _chrome_run_js(poll)
+        if out and out != "null":
+            try:
+                data = json.loads(out)
+            except json.JSONDecodeError:
+                continue
+            return bool(data.get("ok"))
+    return False
+
+
+def _chrome_nudge_flush() -> None:
+    """Encourage Chrome's CookieMonster to flush pending cookie writes to
+    the on-disk Cookies DB. Writing and immediately clearing a non-HttpOnly
+    cookie on slack.com dirties the store without affecting Slack state;
+    CookieMonster batches a flush shortly after.
+    """
+    js = (
+        "(function(){"
+        "try{"
+        "document.cookie='slackmcp_flush=1; path=/; domain=.slack.com; max-age=2; secure; samesite=lax';"
+        "document.cookie='slackmcp_flush=; path=/; domain=.slack.com; max-age=0; secure; samesite=lax';"
+        "}catch(e){}"
+        "return 'nudged';"
+        "})()"
+    )
+    _chrome_run_js(js)
+
+
+def _chrome_xoxd(_pw_cache: list = []) -> str | None:
     cookies_src = HOME / "Library/Application Support/Google/Chrome/Default/Cookies"
     if not cookies_src.is_file():
         log("chrome: no Default profile cookies DB")
         return None
-    try:
-        pw = subprocess.run(
-            ["security", "find-generic-password", "-w", "-s", "Chrome Safe Storage"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        ).stdout.strip()
-    except Exception as e:
-        log(f"chrome: Keychain read failed: {e}")
-        return None
-    if not pw:
-        log("chrome: Keychain has no 'Chrome Safe Storage' entry")
-        return None
+    if _pw_cache:
+        pw = _pw_cache[0]
+    else:
+        try:
+            pw = subprocess.run(
+                ["security", "find-generic-password", "-w", "-s", "Chrome Safe Storage"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout.strip()
+        except Exception as e:
+            log(f"chrome: Keychain read failed: {e}")
+            return None
+        if not pw:
+            log("chrome: Keychain has no 'Chrome Safe Storage' entry")
+            return None
+        _pw_cache.append(pw)
     with tempfile.TemporaryDirectory() as tmp:
         dst = Path(tmp) / "Cookies"
         shutil.copy2(cookies_src, dst)
@@ -324,17 +407,49 @@ def _chrome_xoxd() -> str | None:
     return pt.decode()
 
 
-def try_chrome(_workspace_match: str) -> Iterable[TokenPair]:
-    xoxc = _applescript_xoxc()
-    xoxd = _chrome_xoxd()
-    if xoxc and xoxd:
-        yield TokenPair(xoxc=xoxc, xoxd=xoxd, source="chrome")
-    elif not xoxc and not xoxd:
-        log("chrome: nothing extractable (no running Slack tab + no cookie DB match)")
-    elif not xoxc:
-        log("chrome: have xoxd but no xoxc (need signed-in Slack tab + Apple Events toggle)")
-    else:
-        log("chrome: have xoxc but no xoxd (Keychain unavailable or cookie DB missing `d`)")
+def try_chrome(workspace_match: str) -> Iterable[TokenPair]:
+    xoxc = _applescript_xoxc(workspace_match)
+    if not xoxc:
+        log("chrome: no xoxc from live tab (need signed-in Slack tab + Apple Events toggle)")
+        return
+
+    # Validate the live session before trusting the on-disk `d` cookie.
+    # Chrome buffers HttpOnly cookie writes and only flushes on a timer
+    # (~30s), so immediately after sign-in the on-disk `d` is often stale
+    # and will auth.test as invalid_auth even when the browser session is
+    # perfectly valid. Running auth.test from inside the Slack tab uses the
+    # in-memory cookie and tells us whether the session itself is good.
+    live_ok = _chrome_live_authtest(xoxc)
+    if not live_ok:
+        log("chrome: in-tab auth.test rejected — the Slack session itself is invalid")
+        return
+    log("chrome: in-tab auth.test ok — session is live, resolving xoxd from disk")
+
+    # Session is valid in-browser. Now reconcile the on-disk `d` cookie,
+    # polling with flush nudges until auth.test with the pair succeeds.
+    # First attempt: whatever's on disk right now.
+    for attempt in range(1, 13):  # ~60s worst case
+        xoxd = _chrome_xoxd()
+        if xoxd:
+            pair = TokenPair(xoxc=xoxc, xoxd=xoxd, source="chrome")
+            ok, err, _ = auth_test(pair)
+            if ok:
+                yield pair
+                return
+            log(
+                f"chrome: disk xoxd rejected ({err}) on attempt {attempt}; "
+                "Chrome hasn't flushed yet, nudging + retrying"
+            )
+        else:
+            log(f"chrome: no xoxd on disk on attempt {attempt}; nudging + retrying")
+        _chrome_nudge_flush()
+        time.sleep(5)
+
+    log(
+        "chrome: live session is valid but disk xoxd never caught up after "
+        "60s. Try switching to the Slack tab (Chrome flushes cookies more "
+        "aggressively while the tab is foregrounded) and refresh again."
+    )
 
 
 # -------------------------------------------------------------- persistence

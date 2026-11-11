@@ -74,21 +74,28 @@ interface IncomingItem {
 
 const VALID_BUCKETS: Bucket[] = ["now", "next", "later"];
 
-export async function POST(req: Request) {
-  const headers = corsHeaders(req.headers.get("origin"));
-  if (Object.keys(headers).length === 0) {
-    return NextResponse.json({ error: "origin not allowed" }, { status: 403 });
-  }
+export interface LatticeSyncResult {
+  ok: true;
+  received: number;
+  accepted: number;
+  created: number;
+  updated: number;
+  removed: number;
+  skipped: number;
+  syncedAt: string;
+  who: string | null;
+}
 
-  const body = (await req.json().catch(() => null)) as {
-    items?: IncomingItem[];
-    who?: string;
-  } | null;
-  if (!body || !Array.isArray(body.items)) {
-    return NextResponse.json({ error: "expected { items: [...] }" }, { status: 400, headers });
-  }
-
-  // Validate + normalize incoming items.
+/**
+ * Shared merge pipeline used by both the bookmarklet POST handler and the
+ * auto-refresh route (app/api/settings/lattice/auto-refresh). Centralizing
+  * here keeps the dedup + tombstone + "removed items" logic in one place so
+  * the two entry points can't drift.
+ */
+export async function mergeLatticeItems(input: {
+  items: IncomingItem[];
+  who?: string;
+}): Promise<LatticeSyncResult> {
   const clean: {
     externalId: string;
     title: string;
@@ -97,13 +104,9 @@ export async function POST(req: Request) {
     url?: string;
   }[] = [];
   const { decodeHtmlEntities } = await import("@/lib/decode-html");
-  for (const raw of body.items) {
+  for (const raw of input.items) {
     if (!raw || typeof raw !== "object") continue;
     const externalId = String(raw.externalId ?? "").trim();
-    // Lattice's GraphQL payload delivers action-item text with HTML
-    // entities (`&amp;`, `&#39;`, `&gt;`, ...) still encoded. Decode at
-    // ingest so stored titles are clean going forward. Length check
-    // uses the *decoded* text since that's what the user sees.
     const title = decodeHtmlEntities(String(raw.title ?? "").trim());
     if (!externalId.startsWith("lattice:action:") || !title) continue;
     if (externalId.length > 200 || title.length > 500) continue;
@@ -140,10 +143,6 @@ export async function POST(req: Request) {
     if (!alreadyLinked) {
       const dup = findSemanticDup(item, preSync, { includeCompleted: true });
       if (dup) {
-        // A task (live or completed) already covers this commitment.
-        // Including completed tasks prevents re-creating items the user
-        // already finished — Lattice recurring 1:1s often re-surface the
-        // same action item with a different externalId.
         skipped++;
         continue;
       }
@@ -164,13 +163,6 @@ export async function POST(req: Request) {
     else updated++;
   }
 
-  // Remove any Lattice action tasks that weren't in the current sync —
-  // they've either been completed on Lattice's side or reassigned to
-  // someone else. deleteByExternalId honors the checked-off guard, so a
-  // task the user has already marked complete stays as history.
-  // Also skip items the user has re-categorized (e.g. moved to Reading
-  // List) — that's a signal they've claimed the task and it shouldn't
-  // be auto-removed just because Lattice no longer surfaces it.
   const existing = await getAllTasks();
   let removed = 0;
   for (const t of existing) {
@@ -189,18 +181,34 @@ export async function POST(req: Request) {
     // last-synced is metadata — persistence is best-effort.
   }
 
-  return NextResponse.json(
-    {
-      ok: true,
-      received: body.items.length,
-      accepted: clean.length,
-      created,
-      updated,
-      removed,
-      skipped,
-      syncedAt,
-      who: body.who ?? null,
-    },
-    { headers },
-  );
+  return {
+    ok: true,
+    received: input.items.length,
+    accepted: clean.length,
+    created,
+    updated,
+    removed,
+    skipped,
+    syncedAt,
+    who: input.who ?? null,
+  };
 }
+
+export async function POST(req: Request) {
+  const headers = corsHeaders(req.headers.get("origin"));
+  if (Object.keys(headers).length === 0) {
+    return NextResponse.json({ error: "origin not allowed" }, { status: 403 });
+  }
+
+  const body = (await req.json().catch(() => null)) as {
+    items?: IncomingItem[];
+    who?: string;
+  } | null;
+  if (!body || !Array.isArray(body.items)) {
+    return NextResponse.json({ error: "expected { items: [...] }" }, { status: 400, headers });
+  }
+
+  const result = await mergeLatticeItems({ items: body.items, who: body.who });
+  return NextResponse.json(result, { headers });
+}
+
