@@ -315,6 +315,8 @@ def extract_items(subdomain: str, payload: dict) -> tuple[list[dict], str, dict]
     items: list[dict] = []
     total_acts = 0
     mine_acts = 0
+    assigned_to_others = 0
+    unassigned_skipped = 0
 
     from datetime import datetime
 
@@ -332,9 +334,29 @@ def extract_items(subdomain: str, payload: dict) -> tuple[list[dict], str, dict]
                 total_acts += 1
                 if a.get("completedAt"):
                     continue
-                assignee = a.get("assigneeUser") or {}
-                if assignee.get("entityId") != my_entity_id:
+
+                # Assignee gate. Lattice gives us two signals on the
+                # assignee: `entityId` (compare to our viewer id) and
+                # `viewerIsUser` (Lattice's own "is this the signed-in
+                # user?" flag). Require BOTH — if either disagrees we're
+                # looking at an item assigned to the other person (which
+                # I probably asked them to do) and it must not land on my
+                # list. If there's no assignee at all, skip rather than
+                # default to mine; an unowned action item on a 1:1 is
+                # ambiguous and the user's rule is "don't assume mine."
+                assignee = a.get("assigneeUser")
+                if not assignee or not assignee.get("entityId"):
+                    unassigned_skipped += 1
                     continue
+                if assignee.get("entityId") != my_entity_id:
+                    assigned_to_others += 1
+                    continue
+                if assignee.get("viewerIsUser") is False:
+                    # Defensive: if entityId matched but viewerIsUser is
+                    # explicitly false, trust Lattice's flag and skip.
+                    assigned_to_others += 1
+                    continue
+
                 mine_acts += 1
                 body = _strip_markup(a.get("body") or "")
                 if not body:
@@ -352,7 +374,12 @@ def extract_items(subdomain: str, payload: dict) -> tuple[list[dict], str, dict]
                         "externalId": f"lattice:action:{eid}",
                         "title": body,
                         "bucket": "next",
-                        "sourceRef": f"From Lattice 1:1 with {other}{due_suffix}.",
+                        # Include the assignee name so the user can audit
+                        # misattributions at a glance in the task card.
+                        "sourceRef": (
+                            f"From Lattice 1:1 with {other}{due_suffix} — "
+                            f"assigned to {assignee.get('name') or 'you'}."
+                        ),
                         "url": (
                             f"{origin}/users/{rel.get('entityId')}/1-1s"
                             if rel.get("entityId")
@@ -361,7 +388,12 @@ def extract_items(subdomain: str, payload: dict) -> tuple[list[dict], str, dict]
                     }
                 )
 
-    return items, who_name, {"totalActs": total_acts, "mineActs": mine_acts}
+    return items, who_name, {
+        "totalActs": total_acts,
+        "mineActs": mine_acts,
+        "assignedToOthers": assigned_to_others,
+        "unassignedSkipped": unassigned_skipped,
+    }
 
 
 # --------------------------------------------------------------------- main
@@ -396,7 +428,9 @@ def main() -> int:
     items, who, stats = extract_items(subdomain, payload)
     log(
         f"extracted {stats['mineActs']} items assigned to me out of "
-        f"{stats['totalActs']} total action items across 1:1s"
+        f"{stats['totalActs']} total action items across 1:1s "
+        f"({stats['assignedToOthers']} assigned to others, "
+        f"{stats['unassignedSkipped']} unassigned — skipped)"
     )
 
     print(

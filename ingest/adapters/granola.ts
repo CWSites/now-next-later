@@ -257,8 +257,18 @@ function normalizeFirstName(name: string): string {
 /**
  * Decide whether an action item's owner tag refers to me.
  *
- *   - No tag, ≤2 attendees (1:1)            → treat as mine.
- *   - No tag, 3+ attendees                  → NOT mine (too ambiguous).
+ * Rule of thumb: when attribution is ambiguous, DO NOT claim the item
+ * as mine. The whole point of these tasks is to surface what I've
+ * committed to — silently hoovering up items I actually asked other
+ * people to do (and which Granola failed to tag) is worse than missing
+ * a few legit items that lacked a tag.
+ *
+ *   - No tag                                 → NOT mine. Even in a 1:1,
+ *                                              the counterpart's untagged
+ *                                              action items would
+ *                                              otherwise default to me.
+ *                                              The user has been clear:
+ *                                              don't assume mine.
  *   - Full name / email exact match          → mine.
  *   - First-name match, no collision in room → mine.
  *   - First-name match, another same-name    → NOT mine (ambiguous, skip
@@ -270,9 +280,11 @@ function attributedToMe(
   myEmail: string,
   myFirstName: string,
   collision: boolean,
-  attendeeCount: number,
+  // Kept for API stability — was used by the old "1:1 defaults to mine"
+  // branch. New behavior ignores attendee count entirely: no tag = skip.
+  _attendeeCount: number,
 ): boolean {
-  if (!ownerTag || !ownerTag.trim()) return attendeeCount <= 2;
+  if (!ownerTag || !ownerTag.trim()) return false;
   const tag = ownerTag.trim().toLowerCase();
   if (tag === myEmail) return true;
   const myFirst = normalizeFirstName(myFirstName);

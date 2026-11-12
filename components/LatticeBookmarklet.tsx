@@ -34,7 +34,7 @@ const BOOKMARKLET_SRC = `(async()=>{try{
   const rels=(who&&who.userActiveOneOnOneRelationshipUsers)||[];
   const items=[];
   const stripMarkup=s=>String(s||'').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();
-  let totalActs=0,mineActs=0;
+  let totalActs=0,mineActs=0,assignedToOthers=0,unassignedSkipped=0;
   for(const rel of rels){
     const other=rel.preferredName||rel.name||'someone';
     const edges=(rel.viewerUserRelationship&&rel.viewerUserRelationship.oneOnOneMeetings&&rel.viewerUserRelationship.oneOnOneMeetings.edges)||[];
@@ -43,18 +43,22 @@ const BOOKMARKLET_SRC = `(async()=>{try{
       for(const a of acts){
         totalActs++;
         if(a.completedAt) continue;
-        if(!a.assigneeUser||a.assigneeUser.entityId!==myEntityId) continue;
+        const assignee=a.assigneeUser;
+        if(!assignee||!assignee.entityId){unassignedSkipped++;continue;}
+        if(assignee.entityId!==myEntityId){assignedToOthers++;continue;}
+        if(assignee.viewerIsUser===false){assignedToOthers++;continue;}
         mineActs++;
         const body=stripMarkup(a.body);
         if(!body) continue;
         const dueStr=a.dueDate?' (due '+new Date(a.dueDate).toLocaleDateString([],{month:'short',day:'numeric'})+')':'';
-        items.push({externalId:'lattice:action:'+(a.entityId||a.id),title:body,bucket:'next',sourceRef:'From Lattice 1:1 with '+other+dueStr+'.',url:rel.entityId?origin+'/users/'+rel.entityId+'/1-1s':undefined});
+        const assigneeName=assignee.name||'you';
+        items.push({externalId:'lattice:action:'+(a.entityId||a.id),title:body,bucket:'next',sourceRef:'From Lattice 1:1 with '+other+dueStr+' \u2014 assigned to '+assigneeName+'.',url:rel.entityId?origin+'/users/'+rel.entityId+'/1-1s':undefined});
       }
     }
   }
   const res=await fetch('%%APP_ORIGIN%%/api/settings/lattice/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({items,who:who&&(who.name||who.preferredName)})});
   const data=await res.json();
-  if(res.ok){const parts=[];if(data.created)parts.push(data.created+' new');if(data.updated)parts.push(data.updated+' synced');if(data.skipped)parts.push(data.skipped+' merged into existing');if(data.removed)parts.push(data.removed+' removed');alert('\u2705 Lattice sync: '+(parts.length?parts.join(', '):'no changes')+'.\\n\\n'+mineActs+' of '+totalActs+' open items across your 1:1s are assigned to you.');}
+  if(res.ok){const parts=[];if(data.created)parts.push(data.created+' new');if(data.updated)parts.push(data.updated+' synced');if(data.skipped)parts.push(data.skipped+' merged into existing');if(data.removed)parts.push(data.removed+' removed');alert('\u2705 Lattice sync: '+(parts.length?parts.join(', '):'no changes')+'.\\n\\n'+mineActs+' of '+totalActs+' open items across your 1:1s are assigned to you ('+assignedToOthers+' to others, '+unassignedSkipped+' unassigned \u2014 skipped).');}
   else{alert('\u274C '+(data.error||('HTTP '+res.status)));}
 }catch(e){alert('Error: '+e.message);}})();`;
 
