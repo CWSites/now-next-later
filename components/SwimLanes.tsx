@@ -124,7 +124,13 @@ export function SwimLanes({
     const map = new Map<string, Task[]>();
     const knownIds = new Set(priorities.filter((p) => !p.retired).map((p) => p.id));
     for (const t of tasks) {
-      if (t.category === "book") continue; // books don't belong in the priority grid
+      // Keep this filter in lockstep with Board.tsx's main-column
+      // filter: books live in the Reading tab, Jira tickets live in
+      // the Jira tab. Swim-lanes is just a re-layout of the same
+      // board-visible tasks, so showing either here would make the
+      // two views look like they hold different cards.
+      if (t.category === "book") continue;
+      if (t.source === "jira") continue;
       const effectivePid =
         t.priorityId && knownIds.has(t.priorityId) ? t.priorityId : UNASSIGNED_LANE_ID;
       const key = `${effectivePid}:${t.bucket}`;
